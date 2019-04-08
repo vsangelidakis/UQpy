@@ -116,14 +116,14 @@ class Model:
             self.cluster = cluster
 
         elif self.type == 'pdf':
-            self.pdf = Distribution(name=self.name)
+            self.pdf = Distribution(dist_name=self.name)
 
         else:
             raise ValueError('UQpy error: model_type must be defined, as either "pdf" of "python".')
 
         # Define prior if it is given
         if prior_name is not None:
-            self.prior = Distribution(name = prior_name, copula = prior_copula)
+            self.prior = Distribution(dist_name= prior_name, copula = prior_copula)
             self.prior_params = prior_params
         else:
             self.prior = None

@@ -62,19 +62,19 @@ class Distribution:
             A handler pointing to a distribution and its associated methods.
     """
 
-    def __init__(self, name=None, copula=None):
+    def __init__(self, dist_name=None, copula=None):
 
-        if name is None:
-            raise ValueError('UQpy error: A Distribution name must be provided!')
-        if not isinstance(name, str) and not (isinstance(name, list) and isinstance(name[0], str)):
-            raise ValueError('UQpy error: name must be a string or a list of strings.')
-        self.name = name
+        if dist_name is None:
+            raise ValueError('UQpy error: A Distribution dist_name must be provided!')
+        if not isinstance(dist_name, str) and not (isinstance(dist_name, list) and isinstance(dist_name[0], str)):
+            raise ValueError('UQpy error: dist_name must be a string or a list of strings.')
+        self.name = dist_name
 
         if copula is not None:
             if not isinstance(copula, str):
                 raise ValueError('UQpy error: when provided, copula should be a string.')
-            if isinstance(name, str):
-                raise ValueError('UQpy error: it does not make sense to define a copula when name is a single string.')
+            if isinstance(dist_name, str):
+                raise ValueError('UQpy error: it does not make sense to define a copula when dist_name is a single string.')
             self.copula = Copula(copula_name=copula, dist_name=self.name)
         else:
             self.copula = None
