@@ -168,12 +168,12 @@ class LHS:
     # Created by: Lohit Vandanapu
     # Last modified: 6/20/2018 by Dimitris G. Giovanis
 
-    def __init__(self, dimension=None, dist_name=None, dist_params=None, lhs_criterion='random', lhs_metric='euclidean',
+    def __init__(self, dist_name=None, dist_params=None, lhs_criterion='random', lhs_metric='euclidean',
                  lhs_iter=100, nsamples=None):
 
-        self.dimension = dimension
         self.nsamples = nsamples
         self.dist_name = dist_name
+        self.dimension = len(self.dist_name)
         self.dist_params = dist_params
         self.lhs_criterion = lhs_criterion
         self.lhs_metric = lhs_metric
@@ -197,7 +197,7 @@ class LHS:
         samples_u_to_x = np.zeros_like(samples)
         for j in range(samples.shape[1]):
             i_cdf = self.distribution[j].icdf
-            samples_u_to_x[:, j] = i_cdf(samples[:, j], self.distribution[j].params)
+            samples_u_to_x[:, j] = i_cdf(samples[:, j], self.dist_params[j])
 
         print('Successful execution of LHS design..')
         return samples, samples_u_to_x
