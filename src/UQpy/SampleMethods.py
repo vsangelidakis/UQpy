@@ -1803,9 +1803,9 @@ class AKMCS:
                         distribution, dist[i].
     :type dist_params: list
 
-    :param lf: Learning function used as selection criteria to identify the new samples.
+    :param learning_function: Learning function used as selection criteria to identify the new samples.
                Options: U, Weighted-U, EFF, EIF and EGIF
-    :type lf: str/function
+    :type learning_function: str/function
 
     :param n_add: Number of samples to be selected per iteration.
     :type n_add: int
@@ -1847,9 +1847,9 @@ class AKMCS:
     Last modified: 01/07/2020 by Mohit S. Chauhan
     """
 
-    def __init__(self, run_model_object=None, samples=None, krig_object=None, nlearn=10000, nstart=None,
-                 population=None, dist_name=None, dist_params=None, qoi_name=None, lf='U', n_add=1,
-                 min_cov=0.05, max_p=None, verbose=False, kriging='UQpy', save_pf=None):
+    def __init__(self, dist_object, run_model_object=None, samples=None, krig_object=None, nsamples=None, nlearn=10000,
+                 nstart=None, qoi_name=None, learning_function='U', n_add=1, min_cov=0.05, random_state=None,
+                 verbose=False, save_pf=None, **kwargs):
 
         # Initialize the internal variables of the class.
         self.run_model_object = run_model_object
@@ -1860,12 +1860,10 @@ class AKMCS:
         self.verbose = verbose
         self.qoi_name = qoi_name
 
-        self.lf = lf
+        self.lf = learning_function
         self.min_cov = min_cov
-        self.max_p = max_p
-        self.dist_name = dist_name
-        self.dist_params = dist_params
-        self.nsamples = []
+        self.dist_object = dist_object
+        self.nsamples = nsamples
 
         self.moments = None
         self.distribution = None
@@ -1874,32 +1872,36 @@ class AKMCS:
         self.indicator = False
         self.pf = []
         self.cov_pf = []
-        self.population = population
-        self.kriging = kriging
         self.save_pf = save_pf
         self.dimension = 0
         self.qoi = None
         self.krig_model = None
+        self.kwargs = kwargs
 
         # Initialize and run preliminary error checks.
         self.init_akmcs()
 
-        # Run AKMCS
-        self.run_akmcs()
+        from UQpy.Distributions import DistributionContinuous1D, JointInd
 
-    def run_akmcs(self):
-        """
-        Executes Adaptive Kriging - Monte Carlo Method.
+        if isinstance(dist_object, list):
+            for i in range(len(dist_object)):
+                if not isinstance(dist_object[i], DistributionContinuous1D):
+                    raise TypeError('UQpy: A DistributionContinuous1D object must be provided.')
+        else:
+            if not isinstance(dist_object, (DistributionContinuous1D, JointInd)):
+                raise TypeError('UQpy: A DistributionContinuous1D or JointInd object must be provided.')
 
-        This is an instance method that check initial sample design an evaluate model at the training points. It is
-        automatically called when the STS class is instantiated.
-        """
+        self.random_state = random_state
+        if isinstance(self.random_state, int):
+            self.random_state = np.random.RandomState(self.random_state)
+        elif not isinstance(self.random_state, (type(None), np.random.RandomState)):
+            raise TypeError('UQpy: random_state must be None, an int or an np.random.RandomState object.')
 
         # If the initial sample design does not exists, run the initial calculations.
         if self.samples is None:
             if self.verbose:
                 print('UQpy: AKMCS - Generating the initial sample set using Latin hypercube sampling.')
-            self.samples = LHS(dist_name=self.dist_name, dist_params=self.dist_params, nsamples=self.nstart).samples
+            self.samples = LHS(dist_object=self.dist_object, nsamples=self.nstart).samples
 
         if self.verbose:
             print('UQpy: AKMCS - Running the initial sample set using RunModel.')
@@ -1907,7 +1909,10 @@ class AKMCS:
         # Evaluate model at the training points
         self.run_model_object.run(samples=self.samples)
 
-    def sample(self, samples=None, n_add=1, append_samples=True, nsamples=0, lf=None):
+        if self.nsamples is not None:
+            self.run(nsamples=self.nsamples)
+
+    def run(self, samples=None, append_samples=True, nsamples=0):
         """
         Iterative procedure is applied to learn samples based on metamodel and learning function, and then metamodel is
         updated based on new samples.
@@ -1917,31 +1922,15 @@ class AKMCS:
         :param samples: A 2d-array of samples
         :type samples: ndarray
 
-        :param n_add: Number of samples to be selected per iteration.
-        :type n_add: int
-
         :param append_samples: If 'True', new samples are append to existing samples in sample_object. Otherwise,
                                existing samples are discarded.
         :type append_samples: boolean
 
         :param nsamples: Number of samples to generate. No Default Value: nsamples must be prescribed.
         :type nsamples: int
-
-        :param lf: Learning function used as selection criteria to identify the new samples. Only required, if
-                   samples are generated using multiple criterion
-                   Options: U, Weighted-U, EFF, EIF and EGIF
-        :type lf: str/function
         """
 
-        if self.kriging != 'UQpy':
-            from sklearn.gaussian_process import GaussianProcessRegressor
-
         self.nsamples = nsamples
-        if n_add is not None:
-            self.n_add = n_add
-        if lf is not None:
-            self.lf = lf
-            self.learning()
 
         if samples is not None:
             # New samples are appended to existing samples, if append_samples is TRUE
@@ -1952,18 +1941,12 @@ class AKMCS:
                 self.run_model_object.qoi_list = []
 
             if self.verbose:
-                print('UQpy: AKMCS - Running the provided sample set using RunModel.')
+                print('UQpy: AKMCS - Evaluating the model at the sample set using RunModel.')
 
             self.run_model_object.run(samples=samples, append_samples=append_samples)
 
         if self.verbose:
             print('UQpy: Performing AK-MCS design...')
-
-        # Initialize the population of samples at which to evaluate the learning function and from which to draw in the
-        # sampling.
-        if self.population is None:
-            self.population = MCS(dist_name=self.dist_name, dist_params=self.dist_params,
-                                  nsamples=self.nlearn)
 
         # If the quantity of interest is a dictionary, convert it to a list
         self.qoi = [None] * len(self.run_model_object.qoi_list)
@@ -1974,27 +1957,24 @@ class AKMCS:
             self.qoi = self.run_model_object.qoi_list
 
         # Train the initial Kriging model.
-        if self.kriging == 'UQpy':
-            with suppress_stdout():  # disable printing output comments
-                self.krig_object.fit(samples=self.samples, values=np.atleast_2d(np.array(self.qoi)))
-            self.krig_model = self.krig_object.interpolate
-        else:
-            from sklearn.gaussian_process import GaussianProcessRegressor
-            gp = GaussianProcessRegressor(kernel=self.krig_object, n_restarts_optimizer=0)
-            gp.fit(self.training_points, self.qoi)
-            self.krig_model = gp.predict
+        self.krig_object.fit(self.samples, self.qoi)
+        self.krig_model = self.krig_object.predict
 
         # ---------------------------------------------
         # Primary loop for learning and adding samples.
         # ---------------------------------------------
 
         for i in range(self.samples.shape[0], self.nsamples):
+            # Initialize the population of samples at which to evaluate the learning function and from which to draw
+            # in the sampling.
+            learning_set = MCS(dist_object=self.dist_object, nsamples=self.nlearn).samples
+
             # Find all of the points in the population that have not already been integrated into the training set
-            rest_pop = np.array([x for x in self.population.samples.tolist() if x not in self.samples.tolist()])
+            rest_pop = np.array([x for x in learning_set.tolist() if x not in self.samples.tolist()])
 
             # Apply the learning function to identify the new point to run the model.
 
-            new_ind = self.lf(self.krig_model, rest_pop)
+            new_ind, ind = self.lf(self.krig_model, rest_pop)
             new_point = np.atleast_2d(rest_pop[new_ind])
 
             # Add the new points to the training set and to the sample set.
@@ -2011,31 +1991,35 @@ class AKMCS:
             else:
                 self.qoi = self.run_model_object.qoi_list
 
-            # Retrain the Kriging surrogate model
-            if self.kriging == 'UQpy':
-                with suppress_stdout():
-                    # disable printing output comments
-                    self.krig_object.fit(samples=self.samples, values=np.atleast_2d(np.array(self.qoi)))
-                self.krig_model = self.krig_object.interpolate
-            else:
-                from sklearn.gaussian_process import GaussianProcessRegressor
-                gp = GaussianProcessRegressor(kernel=self.krig_object, n_restarts_optimizer=0)
-                gp.fit(self.training_points, self.qoi)
-                self.krig_model = gp.predict
-
-            if self.verbose:
-                print("Iteration:", i)
+            # Retrain the surrogate model
+            self.krig_object.fit(self.samples, self.qoi)
+            self.krig_model = self.krig_object.predict
+            # if self.kriging == 'UQpy':
+            #     with suppress_stdout():
+            #         # disable printing output comments
+            #         self.krig_object.fit(samples=self.samples, values=np.atleast_2d(np.array(self.qoi)))
+            #     self.krig_model = self.krig_object.predict
+            # else:
+            #     from sklearn.gaussian_process import GaussianProcessRegressor
+            #     gp = GaussianProcessRegressor(kernel=self.krig_object, n_restarts_optimizer=0)
+            #     gp.fit(self.training_points, self.qoi)
+            #     self.krig_model = gp.predict
 
             if self.save_pf:
-                if self.kriging == 'UQpy':
-                    g = self.krig_model(rest_pop)
-                else:
-                    g = self.krig_model(rest_pop, return_std=False)
+                g = self.krig_model(learning_set, return_std=False)
 
                 n_ = g.shape[0] + len(self.qoi)
                 pf = (sum(g < 0) + sum(np.array(self.qoi) < 0)) / n_
                 self.pf.append(pf)
                 self.cov_pf.append(np.sqrt((1 - pf) / (pf * n_)))
+
+            if ind:
+                if self.verbose:
+                    print("UQpy: Learning stops at iteration: ", i)
+                    break
+            else:
+                if self.verbose:
+                    print("Iteration:", i)
 
         if self.verbose:
             print('UQpy: AKMCS complete')
@@ -2043,7 +2027,7 @@ class AKMCS:
     # ------------------
     # LEARNING FUNCTIONS
     # ------------------
-    def eigf(self, pop):
+    def eigf(self, surr, pop):
         """
         Learns new samples based on Expected Improvement for Global Fit (EIGF) as learning function
 
@@ -2056,12 +2040,8 @@ class AKMCS:
         :param pop: Remaining sample population (new samples are learn from this population)
         :type pop
         """
-        if self.kriging == 'UQpy':
-            g, sig = self.krig_model(pop, dy=True)
-            sig = np.sqrt(sig)
-        else:
-            g, sig = self.krig_model(pop, return_std=True)
-            sig = sig.reshape(sig.size, 1)
+        g, sig = surr(pop, return_std=True)
+        sig = sig.reshape(sig.size, 1)
         sig[sig == 0.] = 0.00001
 
         # Evaluation of the learning function
@@ -2078,10 +2058,10 @@ class AKMCS:
         u = np.square(np.squeeze(g) - qoi_array) + np.square(np.squeeze(sig))
 
         rows = np.argmax(u)
-        return rows
+        return rows, False
 
     # This learning function has not yet been tested.
-    def u(self, pop):
+    def u(self, surr, pop):
         """
         Learns new samples based on U-function as learning function.
 
@@ -2095,13 +2075,9 @@ class AKMCS:
         :param pop: Remaining sample population (new samples are learn from this population)
         :type pop
         """
-        if self.kriging == 'UQpy':
-            g, sig = self.krig_model(pop, dy=True)
-            sig = np.sqrt(sig)
-        else:
-            g, sig = self.krig_model(pop, return_std=True)
-            sig = sig.reshape(sig.size, 1)
-        sig[sig == 0.] = 0.00001
+        g, sig = surr(pop, return_std=True)
+        sig = sig.reshape(sig.size, 1)
+        # sig[sig == 0.] = 0.00001
 
         u = abs(g) / sig
         rows = u[:, 0].argsort()[:self.n_add]
@@ -2109,10 +2085,10 @@ class AKMCS:
         if min(u[:, 0]) >= 2:
             self.indicator = True
 
-        return rows
+        return rows, self.indicator
 
     # This learning function has not yet been tested.
-    def weighted_u(self, pop):
+    def weighted_u(self, surr, pop):
         """
         Learns new samples based on Probability Weighted U-function as learning function.
 
@@ -2126,32 +2102,29 @@ class AKMCS:
         :param pop: Remaining sample population (new samples are learn from this population)
         :type pop: numpy array
         """
-        if self.kriging == 'UQpy':
-            g, sig = self.krig_model(pop, dy=True)
-            sig = np.sqrt(sig)
-        else:
-            g, sig = self.krig_model(pop, return_std=True)
-            sig = sig.reshape(sig.size, 1)
+        max_p = self.kwargs['max_p']
+        g, sig = surr(pop, return_std=True)
+        sig = sig.reshape(sig.size, 1)
         sig[sig == 0.] = 0.00001
 
         u = abs(g) / sig
         p1, p2 = np.ones([pop.shape[0], pop.shape[1]]), np.ones([pop.shape[0], pop.shape[1]])
         for j in range(self.dimension):
-            p2[:, j] = self.population.distribution[j].icdf(np.atleast_2d(pop[:, j]).T, self.dist_params[j])
-            p1[:, j] = self.population.distribution[j].pdf(np.atleast_2d(p2[:, j]).T, self.dist_params[j])
+            # p2[:, j] = self.dist_object[j].icdf(np.atleast_2d(pop[:, j]).T)
+            p1[:, j] = self.dist_object[j].pdf(np.atleast_2d(pop[:, j]).T)
 
         p1 = p1.prod(1).reshape(u.size, 1)
-        u_ = u * ((self.max_p - p1) / self.max_p)
+        u_ = u * ((max_p - p1) / max_p)
         # u_ = u * p1/max(p1)
         rows = u_[:, 0].argsort()[:self.n_add]
 
         if min(u[:, 0]) >= 2:
             self.indicator = True
 
-        return rows
+        return rows, self.indicator
 
     # This learning function has not yet been tested.
-    def eff(self, pop):
+    def eff(self, surr, pop):
         """
         Learns new samples based on Expected Feasibilty Function (EFF) as learning function.
 
@@ -2165,17 +2138,13 @@ class AKMCS:
         :param pop: Remaining sample population (new samples are learn from this population)
         :type pop: numpy array
         """
-        if self.kriging == 'UQpy':
-            g, sig = self.krig_model(pop, dy=True)
-            sig = np.sqrt(sig)
-        else:
-            g, sig = self.krig_model(pop, return_std=True)
-            g = g.reshape(g.size, 1)
-            sig = sig.reshape(sig.size, 1)
+        g, sig = surr(pop, return_std=True)
+        g = g.reshape(g.size, 1)
+        sig = sig.reshape(sig.size, 1)
         sig[sig == 0.] = 0.00001
         # Reliability threshold: a_ = 0
         # EGRA method: epshilon = 2*sigma(x)
-        a_, ep = 0, 2 * sig
+        a_, ep = self.kwargs['a'], self.kwargs['epsilon']*sig
         t1 = (a_ - g) / sig
         t2 = (a_ - ep - g) / sig
         t3 = (a_ + ep - g) / sig
@@ -2187,15 +2156,10 @@ class AKMCS:
         if max(eff[:, 0]) <= 0.001:
             self.indicator = True
 
-        n_ = g.shape[0] + len(self.qoi)
-        pf = (np.sum(g < 0) + sum(iin < 0 for iin in self.qoi)) / n_
-        self.pf.append(pf)
-        self.cov_pf.append(np.sqrt((1 - pf) / (pf * n_)))
-
-        return rows
+        return rows, self.indicator
 
     # This learning function has not yet been tested.
-    def eif(self, pop):
+    def eif(self, surr, pop):
         """
         Learns new samples based on Expected Improvement Function (EIF) as learning function.
 
@@ -2209,19 +2173,15 @@ class AKMCS:
         :param pop: Remaining sample population (new samples are learn from this population)
         :type pop: numpy array
         """
-
-        if self.kriging == 'UQpy':
-            g, sig = self.krig_model(pop, dy=True)
-            sig = np.sqrt(sig)
-        else:
-            g, sig = self.krig_model(pop, return_std=True)
-            sig = sig.reshape(sig.size, 1)
+        g, sig = surr(pop, return_std=True)
+        sig = sig.reshape(sig.size, 1)
         sig[sig == 0.] = 0.00001
+
         fm = min(self.qoi)
         u = (fm - g) * stats.norm.cdf((fm - g) / sig) + sig * stats.norm.pdf((fm - g) / sig)
         rows = u[:, 0].argsort()[(np.size(g) - self.n_add):]
 
-        return rows
+        return rows, False
 
     def learning(self):
         """
@@ -2250,7 +2210,7 @@ class AKMCS:
         if self.samples is not None:
             self.dimension = np.shape(self.samples)[1]
         else:
-            self.dimension = np.shape(self.dist_name)[0]
+            self.dimension = len(self.dist_object)
 
         if self.save_pf is None:
             if self.lf not in ['EFF', 'U', 'Weighted-U']:

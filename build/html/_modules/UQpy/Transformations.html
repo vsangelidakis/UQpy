@@ -49,471 +49,569 @@
 <span class="c1"># COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR</span>
 <span class="c1"># OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.</span>
 
+<span class="sd">&quot;&quot;&quot;This module contains functionality for all the transformations supported in UQpy.&quot;&quot;&quot;</span>
 
-<span class="kn">from</span> <span class="nn">UQpy.Distributions</span> <span class="k">import</span> <span class="o">*</span>
+
+<span class="kn">from</span> <span class="nn">UQpy.Utilities</span> <span class="kn">import</span> <span class="o">*</span>
+<span class="kn">from</span> <span class="nn">UQpy.Distributions</span> <span class="kn">import</span> <span class="o">*</span>
+
+<span class="c1"># Authors: Dimitris G.Giovanis, Audrey Olivier</span>
+<span class="c1"># Last Modified: 12/4/18 by Dimitris G. Giovanis</span>
+
+
+<span class="c1">########################################################################################################################</span>
+<span class="c1">########################################################################################################################</span>
+<span class="c1">#                                         Correlate standard normal samples</span>
+<span class="c1">########################################################################################################################</span>
+
+<div class="viewcode-block" id="Correlate"><a class="viewcode-back" href="../../transformations.html#UQpy.Transformations.Correlate">[docs]</a><span class="k">class</span> <span class="nc">Correlate</span><span class="p">:</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Description:</span>
+<span class="sd">    A class to correlate standard normal samples ~ N(0, 1) given a correlation matrix.</span>
+
+<span class="sd">    Input:</span>
+<span class="sd">    :param input_samples: An object of a SampleMethods class or an array of standard normal samples ~ N(0, 1).</span>
+<span class="sd">    :type input_samples: object or ndarray</span>
+
+<span class="sd">    :param corr_norm: The correlation matrix of the random variables in the standard normal space.</span>
+<span class="sd">    :type corr_norm: ndarray</span>
+
+<span class="sd">    param: distribution: An object list containing the distributions of the random variables.</span>
+<span class="sd">                         Each item in the list is an object of the Distribution class (see Distributions.py).</span>
+<span class="sd">                         The list has length equal to dimension.</span>
+<span class="sd">    :type distribution: list</span>
+
+<span class="sd">    Output:</span>
+<span class="sd">    :return: Correlate.samples: Set of correlated normal samples.</span>
+<span class="sd">    :rtype: Correlate.samples: ndarray</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="c1"># Authors: Dimitris G.Giovanis</span>
+    <span class="c1"># Last Modified: 7/4/18 by Michael D. Shields</span>
+
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">input_samples</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">corr_norm</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">dimension</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+
+        <span class="c1"># If samples is not an array (It should be an instance of a SampleMethods class)</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">input_samples</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">)</span> <span class="ow">is</span> <span class="kc">False</span><span class="p">:</span>
+            <span class="n">_dict</span> <span class="o">=</span> <span class="p">{</span><span class="o">**</span><span class="n">input_samples</span><span class="o">.</span><span class="vm">__dict__</span><span class="p">}</span>
+            <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">_dict</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+                <span class="nb">setattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span><span class="p">)</span>
+
+            <span class="bp">self</span><span class="o">.</span><span class="n">corr_norm</span> <span class="o">=</span> <span class="n">corr_norm</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">samples_uncorr</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">samples</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+
+            <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">dist_name</span><span class="p">)):</span>
+                <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">dist_name</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span> <span class="o">!=</span> <span class="s1">&#39;normal&#39;</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">dist_params</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">!=</span> <span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">]:</span>
+                    <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="s2">&quot;In order to use class &#39;Correlate&#39; the random variables should be standard&quot;</span>
+                                       <span class="s2">&quot;normal&quot;</span><span class="p">)</span>
+
+        <span class="c1"># If samples is an array</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;Caution: The samples provided must be uncorrelated standard normal random variables.&#39;</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">samples_uncorr</span> <span class="o">=</span> <span class="n">input_samples</span>
+            <span class="k">if</span> <span class="n">dimension</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="s2">&quot;Dimension must be specified when entering samples as an array.&quot;</span><span class="p">)</span>
+
+            <span class="bp">self</span><span class="o">.</span><span class="n">dimension</span> <span class="o">=</span> <span class="n">dimension</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">dist_name</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;normal&#39;</span><span class="p">]</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">dimension</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">dist_params</span> <span class="o">=</span> <span class="p">[[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">]]</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">dimension</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">corr_norm</span> <span class="o">=</span> <span class="n">corr_norm</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">distribution</span> <span class="o">=</span> <span class="p">[</span><span class="kc">None</span><span class="p">]</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">dimension</span>
+            <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">dimension</span><span class="p">):</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">distribution</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="n">Distribution</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">dist_name</span><span class="p">[</span><span class="n">i</span><span class="p">])</span>
+
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">corr_norm</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="s2">&quot;A correlation matrix is required.&quot;</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">np</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">norm</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">corr_norm</span> <span class="o">-</span> <span class="n">np</span><span class="o">.</span><span class="n">identity</span><span class="p">(</span><span class="n">n</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">corr_norm</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]))</span> <span class="o">&lt;</span> <span class="mi">10</span> <span class="o">**</span> <span class="p">(</span><span class="o">-</span><span class="mi">8</span><span class="p">):</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">samples</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">samples_uncorr</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">samples</span> <span class="o">=</span> <span class="n">run_corr</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">samples_uncorr</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">corr_norm</span><span class="p">)</span></div>
+
+
+<span class="c1">########################################################################################################################</span>
+<span class="c1">########################################################################################################################</span>
+<span class="c1">#                                         Decorrelate standard normal samples</span>
+<span class="c1">########################################################################################################################</span>
+
+<span class="k">class</span> <span class="nc">Decorrelate</span><span class="p">:</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Description:</span>
+
+<span class="sd">            A class to decorrelate already correlated normal samples given their correlation matrix.</span>
+
+<span class="sd">        Input:</span>
+<span class="sd">            :param input_samples: An object of type Correlate or an array of correlated N(0,1) samples</span>
+<span class="sd">            :type input_samples: object or ndarray</span>
+
+<span class="sd">            param: distribution: An object list containing the distributions of the random variables.</span>
+<span class="sd">                                 Each item in the list is an object of the Distribution class (see Distributions.py).</span>
+<span class="sd">                                 The list has length equal to dimension.</span>
+<span class="sd">            :type distribution: list</span>
+
+<span class="sd">            :param corr_norm: The correlation matrix of the random variables in the standard normal space</span>
+<span class="sd">            :type corr_norm: ndarray</span>
+
+<span class="sd">        Output:</span>
+<span class="sd">            :return: Decorrelate.samples: Set of uncorrelated normal samples.</span>
+<span class="sd">            :rtype: Decorrelate.samples: ndarray</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="c1"># Authors: Dimitris G.Giovanis</span>
+    <span class="c1"># Last Modified: 6/24/18 by Dimitris G. Giovanis</span>
+
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">input_samples</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">corr_norm</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">dimension</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+
+        <span class="c1"># If samples is not an array (It should be an instance of the Correlate class)</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">input_samples</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">)</span> <span class="ow">is</span> <span class="kc">False</span><span class="p">:</span>
+            <span class="n">_dict</span> <span class="o">=</span> <span class="p">{</span><span class="o">**</span><span class="n">input_samples</span><span class="o">.</span><span class="vm">__dict__</span><span class="p">}</span>
+            <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">_dict</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+                <span class="nb">setattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span><span class="p">)</span>
+
+            <span class="bp">self</span><span class="o">.</span><span class="n">corr_norm</span> <span class="o">=</span> <span class="n">corr_norm</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">samples_corr</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">samples</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+
+            <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">dist_name</span><span class="p">)):</span>
+                <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">dist_name</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span> <span class="o">!=</span> <span class="s1">&#39;normal&#39;</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">dist_params</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">!=</span> <span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">]:</span>
+                    <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="s2">&quot;In order to use class &#39;Decorrelate&#39; the random variables should be standard &quot;</span>
+                                       <span class="s2">&quot;normal.&quot;</span><span class="p">)</span>
+
+        <span class="c1"># If samples is an array</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;Caution: The samples provided must be correlated standard normal random variables.&#39;</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">samples_corr</span> <span class="o">=</span> <span class="n">input_samples</span>
+            <span class="k">if</span> <span class="n">dimension</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="s2">&quot;Dimension must be specified when entering samples as an array.&quot;</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">dimension</span> <span class="o">=</span> <span class="n">dimension</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">dist_name</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;normal&#39;</span><span class="p">]</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">dimension</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">dist_params</span> <span class="o">=</span> <span class="p">[[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">]]</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">dimension</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">corr_norm</span> <span class="o">=</span> <span class="n">corr_norm</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">distribution</span> <span class="o">=</span> <span class="p">[</span><span class="kc">None</span><span class="p">]</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">dimension</span>
+            <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">dimension</span><span class="p">):</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">distribution</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="n">Distribution</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">dist_name</span><span class="p">[</span><span class="n">i</span><span class="p">])</span>
+
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">corr_norm</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="s2">&quot;A correlation matrix is required.&quot;</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">np</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">norm</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">corr_norm</span> <span class="o">-</span> <span class="n">np</span><span class="o">.</span><span class="n">identity</span><span class="p">(</span><span class="n">n</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">corr_norm</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]))</span> <span class="o">&lt;</span> <span class="mi">10</span> <span class="o">**</span> <span class="p">(</span><span class="o">-</span><span class="mi">8</span><span class="p">):</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">samples</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">samples_corr</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">samples</span> <span class="o">=</span> <span class="n">run_decorr</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">samples_corr</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">corr_norm</span><span class="p">)</span>
+
+
+<span class="c1">########################################################################################################################</span>
+<span class="c1">########################################################################################################################</span>
+<span class="c1">#                                         Inverse Nataf transformation</span>
+<span class="c1">########################################################################################################################</span>
+
+
+<span class="k">class</span> <span class="nc">InvNataf</span><span class="p">:</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Description:</span>
+
+<span class="sd">            A class to perform the inverse Nataf transformation of samples from N(0, 1) to a user-defined distribution.</span>
+
+<span class="sd">        Input:</span>
+<span class="sd">            :param input_samples: An object of a SampleMethods class containing N(0,1) samples or an array of N(0,1)</span>
+<span class="sd">                                  samples.</span>
+<span class="sd">            :type input_samples: object or ndarray</span>
+
+<span class="sd">            :param dist_name: A list containing the names of the distributions of the random variables.</span>
+<span class="sd">                              Distribution names must match those in the Distributions module.</span>
+<span class="sd">                              If the distribution does not match one from the Distributions module,the user must provide</span>
+<span class="sd">                              custom_dist.py.</span>
+<span class="sd">                              The length of the string must be 1 (if all distributions are the same) or equal to</span>
+<span class="sd">                              dimension.</span>
+<span class="sd">            :type dist_name: string list</span>
+
+<span class="sd">            :param dist_params: Parameters of the distribution.</span>
+<span class="sd">                                Parameters for each random variable are defined as ndarrays</span>
+<span class="sd">                                Each item in the list, dist_params[i], specifies the parameters for the corresponding</span>
+<span class="sd">                                distribution, dist[i].</span>
+<span class="sd">            :type dist_params: list</span>
+
+<span class="sd">            :param corr_norm: The correlation matrix of the random variables in the standard normal space</span>
+<span class="sd">            :type corr_norm: ndarray</span>
+
+<span class="sd">            param: distribution: An object list containing the distributions of the random variables.</span>
+<span class="sd">                                 Each item in the list is an object of the Distribution class (see Distributions.py).</span>
+<span class="sd">                                 The list has length equal to dimension.</span>
+<span class="sd">            :type distribution: list</span>
+
+<span class="sd">        Output:</span>
+<span class="sd">            :return: InvNataf.corr: The distorted correlation matrix of the random variables in the standard space;</span>
+<span class="sd">            :rtype: InvNataf.corr: ndarray</span>
+
+<span class="sd">            :return: InvNataf.samplesN01: An array of N(0,1) samples;</span>
+<span class="sd">            :rtype: InvNataf.corr: ndarray</span>
+
+<span class="sd">            :return: InvNataf.samples: An array of samples following the prescribed distributions;</span>
+<span class="sd">            :rtype: InvNataf.corr: ndarray</span>
+
+<span class="sd">            :return: InvNataf.jacobian: An array containing the Jacobian of the transformation.</span>
+<span class="sd">            :rtype: InvNataf.jacobian: ndarray</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="c1"># Authors: Dimitris G. Giovanis</span>
+    <span class="c1"># Last Modified: 7/15/18 by Michael D. Shields</span>
+
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">input_samples</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">corr_norm</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">dist_name</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">dist_params</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">dimension</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+
+        <span class="c1"># Check if samples is a SampleMethods Object or an array</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">input_samples</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">)</span> <span class="ow">is</span> <span class="kc">False</span> <span class="ow">and</span> <span class="n">input_samples</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">_dict</span> <span class="o">=</span> <span class="p">{</span><span class="o">**</span><span class="n">input_samples</span><span class="o">.</span><span class="vm">__dict__</span><span class="p">}</span>
+            <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">_dict</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+                <span class="nb">setattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span><span class="p">)</span>
+
+            <span class="bp">self</span><span class="o">.</span><span class="n">dimension</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">dist_name</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">dist_name</span> <span class="o">=</span> <span class="n">dist_name</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">dist_params</span> <span class="o">=</span> <span class="n">dist_params</span>
+            <span class="k">if</span> <span class="n">dist_name</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="n">dist_params</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="k">if</span> <span class="ow">not</span> <span class="nb">hasattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s1">&#39;dist_name&#39;</span><span class="p">)</span> <span class="ow">or</span> <span class="ow">not</span> <span class="nb">hasattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s1">&#39;dist_params&#39;</span><span class="p">):</span>
+                    <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="s2">&quot;In order to use class &#39;InvNataf&#39; the distributions and their parameters must&quot;</span>
+                                       <span class="s2">&quot;be provided.&quot;</span><span class="p">)</span>
+
+            <span class="c1"># Ensure the dimensions of dist_name are consistent</span>
+            <span class="k">if</span> <span class="nb">type</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">dist_name</span><span class="p">)</span><span class="o">.</span><span class="vm">__name__</span> <span class="o">!=</span> <span class="s1">&#39;list&#39;</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">dist_name</span> <span class="o">=</span> <span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">dist_name</span><span class="p">]</span>
+            <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">dist_name</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">dimension</span> <span class="o">!=</span> <span class="mi">1</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">dist_name</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">dist_name</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">dimension</span>
+
+            <span class="c1"># Ensure that dist_params is a list of length dimension</span>
+            <span class="k">if</span> <span class="nb">type</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">dist_params</span><span class="p">)</span><span class="o">.</span><span class="vm">__name__</span> <span class="o">!=</span> <span class="s1">&#39;list&#39;</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">dist_params</span> <span class="o">=</span> <span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">dist_params</span><span class="p">]</span>
+            <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">dist_params</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">dimension</span> <span class="o">!=</span> <span class="mi">1</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">dist_params</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">dist_params</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">dimension</span>
+
+            <span class="bp">self</span><span class="o">.</span><span class="n">distribution</span> <span class="o">=</span> <span class="p">[</span><span class="kc">None</span><span class="p">]</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">dimension</span>
+            <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">dist_name</span><span class="p">)):</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">distribution</span><span class="p">[</span><span class="n">j</span><span class="p">]</span> <span class="o">=</span> <span class="n">Distribution</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">dist_name</span><span class="p">[</span><span class="n">j</span><span class="p">])</span>
+
+            <span class="k">if</span> <span class="ow">not</span> <span class="nb">hasattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s1">&#39;corr_norm&#39;</span><span class="p">):</span>
+                <span class="k">if</span> <span class="n">corr_norm</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">corr_norm</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">identity</span><span class="p">(</span><span class="n">n</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">dimension</span><span class="p">)</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">corr</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">corr_norm</span>
+                <span class="k">elif</span> <span class="n">corr_norm</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">corr_norm</span> <span class="o">=</span> <span class="n">corr_norm</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">corr</span> <span class="o">=</span> <span class="n">correlation_distortion</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">distribution</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">dist_params</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">corr_norm</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">corr</span> <span class="o">=</span> <span class="n">correlation_distortion</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">distribution</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">dist_params</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">corr_norm</span><span class="p">)</span>
+
+            <span class="bp">self</span><span class="o">.</span><span class="n">samplesN01</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">samples</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">samples</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros_like</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">samples</span><span class="p">)</span>
+
+            <span class="bp">self</span><span class="o">.</span><span class="n">samples</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">jacobian</span> <span class="o">=</span> <span class="n">transform_g_to_ng</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">corr_norm</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">distribution</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">dist_params</span><span class="p">,</span>
+                                                            <span class="bp">self</span><span class="o">.</span><span class="n">samplesN01</span><span class="p">)</span>
+
+        <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">input_samples</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">):</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">samplesN01</span> <span class="o">=</span> <span class="n">input_samples</span>
+            <span class="k">if</span> <span class="n">dimension</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="s2">&quot;UQpy: Dimension must be specified in &#39;InvNataf&#39; when entering samples as an array.&quot;</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">dimension</span> <span class="o">=</span> <span class="n">dimension</span>
+
+            <span class="bp">self</span><span class="o">.</span><span class="n">dist_name</span> <span class="o">=</span> <span class="n">dist_name</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">dist_params</span> <span class="o">=</span> <span class="n">dist_params</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">dist_name</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">dist_params</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="s2">&quot;UQpy: Marginal distributions and their parameters must be specified in &#39;InvNataf&#39; &quot;</span>
+                                   <span class="s2">&quot;when entering samples as an array.&quot;</span><span class="p">)</span>
+
+            <span class="c1"># Ensure the dimensions of dist_name are consistent</span>
+            <span class="k">if</span> <span class="nb">type</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">dist_name</span><span class="p">)</span><span class="o">.</span><span class="vm">__name__</span> <span class="o">!=</span> <span class="s1">&#39;list&#39;</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">dist_name</span> <span class="o">=</span> <span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">dist_name</span><span class="p">]</span>
+            <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">dist_name</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">dimension</span> <span class="o">!=</span> <span class="mi">1</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">dist_name</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">dist_name</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">dimension</span>
+
+            <span class="c1"># Ensure that dist_params is a list of length dimension</span>
+            <span class="k">if</span> <span class="nb">type</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">dist_params</span><span class="p">)</span><span class="o">.</span><span class="vm">__name__</span> <span class="o">!=</span> <span class="s1">&#39;list&#39;</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">dist_params</span> <span class="o">=</span> <span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">dist_params</span><span class="p">]</span>
+            <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">dist_params</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">dimension</span> <span class="o">!=</span> <span class="mi">1</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">dist_params</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">dist_params</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">dimension</span>
+
+            <span class="bp">self</span><span class="o">.</span><span class="n">distribution</span> <span class="o">=</span> <span class="p">[</span><span class="kc">None</span><span class="p">]</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">dimension</span>
+            <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">dist_name</span><span class="p">)):</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">distribution</span><span class="p">[</span><span class="n">j</span><span class="p">]</span> <span class="o">=</span> <span class="n">Distribution</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">dist_name</span><span class="p">[</span><span class="n">j</span><span class="p">])</span>
+
+            <span class="k">if</span> <span class="n">corr_norm</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">corr_norm</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">identity</span><span class="p">(</span><span class="n">n</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">dimension</span><span class="p">)</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">corr</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">corr_norm</span>
+            <span class="k">elif</span> <span class="n">corr_norm</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">corr_norm</span> <span class="o">=</span> <span class="n">corr_norm</span>
+                <span class="k">if</span> <span class="n">np</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">norm</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">corr_norm</span> <span class="o">-</span> <span class="n">np</span><span class="o">.</span><span class="n">identity</span><span class="p">(</span><span class="n">n</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">corr_norm</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]))</span> <span class="o">&lt;</span> <span class="mi">10</span> <span class="o">**</span> <span class="p">(</span><span class="o">-</span><span class="mi">8</span><span class="p">):</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">corr</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">corr_norm</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">corr</span> <span class="o">=</span> <span class="n">correlation_distortion</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">distribution</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">dist_params</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">corr_norm</span><span class="p">)</span>
+
+            <span class="bp">self</span><span class="o">.</span><span class="n">samples</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros_like</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">samplesN01</span><span class="p">)</span>
+
+            <span class="bp">self</span><span class="o">.</span><span class="n">samples</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">jacobian</span> <span class="o">=</span> <span class="n">transform_g_to_ng</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">corr_norm</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">distribution</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">dist_params</span><span class="p">,</span>
+                                                            <span class="bp">self</span><span class="o">.</span><span class="n">samplesN01</span><span class="p">)</span>
+            <span class="nb">print</span><span class="p">()</span>
+
+        <span class="k">elif</span> <span class="n">input_samples</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">corr_norm</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">dist_name</span> <span class="o">=</span> <span class="n">dist_name</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">dist_params</span> <span class="o">=</span> <span class="n">dist_params</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">corr_norm</span> <span class="o">=</span> <span class="n">corr_norm</span>
+                <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">dist_name</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">dist_params</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                    <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="s2">&quot;UQpy: In order to use class &#39;InvNataf&#39;, marginal distributions and their &quot;</span>
+                                       <span class="s2">&quot;parameters must be provided.&quot;</span><span class="p">)</span>
+
+                <span class="k">if</span> <span class="n">dimension</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">dimension</span> <span class="o">=</span> <span class="n">dimension</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">dimension</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">dist_name</span><span class="p">)</span>
+
+                <span class="c1"># Ensure the dimensions of dist_name are consistent</span>
+                <span class="k">if</span> <span class="nb">type</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">dist_name</span><span class="p">)</span><span class="o">.</span><span class="vm">__name__</span> <span class="o">!=</span> <span class="s1">&#39;list&#39;</span><span class="p">:</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">dist_name</span> <span class="o">=</span> <span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">dist_name</span><span class="p">]</span>
+                <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">dist_name</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">dimension</span> <span class="o">!=</span> <span class="mi">1</span><span class="p">:</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">dist_name</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">dist_name</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">dimension</span>
+
+                <span class="c1"># Ensure that dist_params is a list of length dimension</span>
+                <span class="k">if</span> <span class="nb">type</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">dist_params</span><span class="p">)</span><span class="o">.</span><span class="vm">__name__</span> <span class="o">!=</span> <span class="s1">&#39;list&#39;</span><span class="p">:</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">dist_params</span> <span class="o">=</span> <span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">dist_params</span><span class="p">]</span>
+                <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">dist_params</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">dimension</span> <span class="o">!=</span> <span class="mi">1</span><span class="p">:</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">dist_params</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">dist_params</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">dimension</span>
+
+                <span class="bp">self</span><span class="o">.</span><span class="n">distribution</span> <span class="o">=</span> <span class="p">[</span><span class="kc">None</span><span class="p">]</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">dimension</span>
+                <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">dist_name</span><span class="p">)):</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">distribution</span><span class="p">[</span><span class="n">j</span><span class="p">]</span> <span class="o">=</span> <span class="n">Distribution</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">dist_name</span><span class="p">[</span><span class="n">j</span><span class="p">])</span>
+
+                <span class="bp">self</span><span class="o">.</span><span class="n">corr</span> <span class="o">=</span> <span class="n">correlation_distortion</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">distribution</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">dist_params</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">corr_norm</span><span class="p">)</span>
+
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="s2">&quot;UQpy: To perform the inverse Nataf transformation without samples, a correlation &quot;</span>
+                                   <span class="s2">&quot;function &#39;corr_norm&#39; must be provided.&quot;</span><span class="p">)</span>
+
+
+<span class="c1">########################################################################################################################</span>
+<span class="c1">########################################################################################################################</span>
+<span class="c1">#                                         Nataf transformation</span>
+<span class="c1">########################################################################################################################</span>
 
 
 <div class="viewcode-block" id="Nataf"><a class="viewcode-back" href="../../transformations.html#UQpy.Transformations.Nataf">[docs]</a><span class="k">class</span> <span class="nc">Nataf</span><span class="p">:</span>
     <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">    Transform random variables  using the `Nataf` transformation  and  calculate  the  correlation  distortion.</span>
-<span class="sd">    ([1]_, [2]_).</span>
+<span class="sd">        Description:</span>
+<span class="sd">            A class to perform the Nataf transformation of samples from a user-defined distribution to N(0, 1).</span>
 
-<span class="sd">    This is the parent class to all Nataf algorithms.</span>
+<span class="sd">        Input:</span>
+<span class="sd">            :param input_samples: An object of type SampleMethods, ndarray and InvNataf</span>
+<span class="sd">            :type input_samples: object</span>
 
-<span class="sd">    **References:**</span>
+<span class="sd">            :param dist_name: A list containing the names of the distributions of the random variables.</span>
+<span class="sd">                            Distribution names must match those in the Distributions module.</span>
+<span class="sd">                            If the distribution does not match one from the Distributions module, the user must provide</span>
+<span class="sd">                            custom_dist.py.</span>
+<span class="sd">                            The length of the string must be 1 (if all distributions are the same) or equal to dimension</span>
+<span class="sd">            :type dist_name: string list</span>
 
-<span class="sd">    .. [1] A. Nataf, “Determination des distributions dont les marges sont donnees”, C. R. Acad. Sci.</span>
-<span class="sd">       vol. 225, pp. 42-43, Paris, 1962.</span>
-<span class="sd">    .. [2] R. Lebrun and A. Dutfoy, “An innovating analysis of the Nataf transformation from the copula viewpoint”,</span>
-<span class="sd">       Prob. Eng. Mech.,  vol. 24, pp. 312-320, 2009.</span>
+<span class="sd">            :param dist_params: Parameters of the distribution</span>
+<span class="sd">                    Parameters for each random variable are defined as ndarrays</span>
+<span class="sd">                    Each item in the list, dist_params[i], specifies the parameters for the corresponding distribution,</span>
+<span class="sd">                        dist[i]</span>
+<span class="sd">            :type dist_params: list</span>
 
+<span class="sd">            param: distribution: An object list containing the distributions of the random variables.</span>
+<span class="sd">                   Each item in the list is an object of the Distribution class (see Distributions.py).</span>
+<span class="sd">                   The list has length equal to dimension.</span>
+<span class="sd">            :type distribution: list</span>
+
+<span class="sd">            :param corr The correlation matrix of the random variables in the parameter space.</span>
+<span class="sd">            :type corr: ndarray</span>
+
+<span class="sd">            :param itam_error1:</span>
+<span class="sd">            :type itam_error1: float</span>
+
+<span class="sd">            :param itam_error2:</span>
+<span class="sd">            :type itam_error1: float</span>
+
+<span class="sd">            :param beta:</span>
+<span class="sd">            :type itam_error1: float</span>
+
+
+<span class="sd">        Output:</span>
+<span class="sd">            :return: Nataf.corr: The distorted correlation matrix of the random variables in the standard space;</span>
+<span class="sd">            :rtype: Nataf.corr: ndarray</span>
+
+<span class="sd">            :return: Nataf.samplesN01: An array of N(0,1) samples;</span>
+<span class="sd">            :rtype: Nataf.corr: ndarray</span>
+
+<span class="sd">            :return: Nataf.samples: An array of samples following the normal distribution.</span>
+<span class="sd">            :rtype: Nataf.corr: ndarray</span>
+
+<span class="sd">            :return: Nataf.jacobian: An array containing the Jacobian of the transformation.</span>
+<span class="sd">            :rtype: Nataf.jacobian: ndarray</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
-    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">dist_object</span><span class="p">):</span>
+    <span class="c1"># Authors: Dimitris G.Giovanis</span>
+    <span class="c1"># Last Modified: 4/12/2018 by Dimitris G. Giovanis</span>
 
-        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">dist_object</span><span class="p">,</span> <span class="nb">list</span><span class="p">):</span>
-            <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">dist_object</span><span class="p">)):</span>
-                <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">dist_object</span><span class="p">[</span><span class="n">i</span><span class="p">],</span> <span class="p">(</span><span class="n">DistributionContinuous1D</span><span class="p">,</span> <span class="n">JointInd</span><span class="p">)):</span>
-                    <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s1">&#39;UQpy: A  ``DistributionContinuous1D`` or ``JointInd`` object must be provided.&#39;</span><span class="p">)</span>
-        <span class="k">else</span><span class="p">:</span>
-            <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">dist_object</span><span class="p">,</span> <span class="p">(</span><span class="n">DistributionContinuous1D</span><span class="p">,</span> <span class="n">JointInd</span><span class="p">)):</span>
-                <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s1">&#39;UQpy: A  ``DistributionContinuous1D``  or ``JointInd`` object must be provided.&#39;</span><span class="p">)</span></div>
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">input_samples</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">dimension</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">corr</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">dist_name</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">dist_params</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">beta</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                 <span class="n">itam_error1</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">itam_error2</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
 
+        <span class="c1"># If samples is an instance of a SampleMethods class</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">input_samples</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">)</span> <span class="ow">is</span> <span class="kc">False</span> <span class="ow">and</span> <span class="n">input_samples</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">_dict</span> <span class="o">=</span> <span class="p">{</span><span class="o">**</span><span class="n">input_samples</span><span class="o">.</span><span class="vm">__dict__</span><span class="p">}</span>
+            <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">_dict</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+                <span class="nb">setattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span><span class="p">)</span>
 
-<div class="viewcode-block" id="Forward"><a class="viewcode-back" href="../../transformations.html#UQpy.Transformations.Forward">[docs]</a><span class="k">class</span> <span class="nc">Forward</span><span class="p">(</span><span class="n">Nataf</span><span class="p">):</span>
-    <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">    A class perform the Nataf transformation, i.e. transform arbitrarily distributed random variables</span>
-<span class="sd">    to independent standard normal variables. This is a an child class of the ``Nataf`` class.</span>
+            <span class="c1"># Allow to inherit distribution from samples or the user to specify the distribution</span>
+            <span class="k">if</span> <span class="n">dist_name</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="n">dist_params</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="k">if</span> <span class="ow">not</span> <span class="nb">hasattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s1">&#39;dist_name&#39;</span><span class="p">)</span> <span class="ow">or</span> <span class="ow">not</span> <span class="nb">hasattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s1">&#39;dist_params&#39;</span><span class="p">):</span>
+                    <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="s2">&quot;In order to use class &#39;Nataf&#39; the distributions and their parameters must&quot;</span>
+                                       <span class="s2">&quot;be provided.&quot;</span><span class="p">)</span>
 
-<span class="sd">    **Inputs:**</span>
-
-<span class="sd">    * **samples** (`ndarray`):</span>
-<span class="sd">            Random vector of shape ``(nsamples, dimension)`` with prescribed probability distribution, with</span>
-<span class="sd">            ``(nsamples, dimension) = samples.shape``.</span>
-
-<span class="sd">    * **dist_object** ((list of ) ``Distribution`` object(s)):</span>
-<span class="sd">                    Probability distribution of each random variable. Must be an object of type</span>
-<span class="sd">                    ``DistributionContinuous1D`` or ``JointInd``.</span>
-
-<span class="sd">    * **cov** (`ndarray`):</span>
-<span class="sd">        The correlation  matrix (:math:`\mathbf{C_X}`) of the random vector **X** .</span>
-
-<span class="sd">        Default: The ``identity`` matrix.</span>
-
-<span class="sd">    * **itam_error1** (`float`):</span>
-<span class="sd">        A threshold value the `ITAM` method (see ``Utilities`` module).</span>
-
-<span class="sd">        Default: 0.001</span>
-
-<span class="sd">    * **itam_error2** (`float`):</span>
-<span class="sd">        A threshold value the `ITAM` method (see ``Utilities`` module).</span>
-
-<span class="sd">        Default: 0.01</span>
-
-<span class="sd">    * **beta** (`float`):</span>
-<span class="sd">        A variable selected to optimize convergence speed and desired accuracy of the ITAM method (see</span>
-<span class="sd">        ``Utilities`` module).</span>
-
-<span class="sd">        Default: 1.0</span>
-
-<span class="sd">    **Output/Returns:**</span>
-
-<span class="sd">    * **U** (`ndarray`):</span>
-<span class="sd">        Independent standard normal vector of shape ``(nsamples, dimension)``.</span>
-
-<span class="sd">    * **Cz** (`ndarray`):</span>
-<span class="sd">        Distorted correlation matrix (:math:`\mathbf{C_Z}`) of the standard normal vector **Z**.</span>
-
-<span class="sd">    * **Jxu** (`ndarray`):</span>
-<span class="sd">        The jacobian of the transformation of shape ``(dimension, dimension)`` (if asked).</span>
-
-<span class="sd">    **Methods:**</span>
-<span class="sd">    &quot;&quot;&quot;</span>
-
-    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">dist_object</span><span class="p">,</span> <span class="n">samples</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">cov</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">beta</span><span class="o">=</span><span class="mf">1.0</span><span class="p">,</span> <span class="n">itam_error1</span><span class="o">=</span><span class="mf">0.001</span><span class="p">,</span>
-                 <span class="n">itam_error2</span><span class="o">=</span><span class="mf">0.01</span><span class="p">):</span>
-
-        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">dist_object</span><span class="p">)</span>
-
-        <span class="bp">self</span><span class="o">.</span><span class="n">beta</span> <span class="o">=</span> <span class="n">beta</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">itam_error1</span> <span class="o">=</span> <span class="n">itam_error1</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">itam_error2</span> <span class="o">=</span> <span class="n">itam_error2</span>
-
-        <span class="k">if</span> <span class="n">samples</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
-            <span class="k">if</span> <span class="n">cov</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
-                <span class="k">raise</span> <span class="ne">Warning</span><span class="p">(</span><span class="s1">&#39;UQpy: No action is performed.&#39;</span><span class="p">)</span>
+            <span class="c1"># Allow to inherit correlation from samples or the user to specify the correlation</span>
+            <span class="k">if</span> <span class="n">corr</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="k">if</span> <span class="ow">not</span> <span class="nb">hasattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s1">&#39;corr&#39;</span><span class="p">):</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">corr</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">identity</span><span class="p">(</span><span class="n">n</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">dimension</span><span class="p">)</span>
             <span class="k">else</span><span class="p">:</span>
-                <span class="bp">self</span><span class="o">.</span><span class="n">Cz</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">distortion_x_to_z</span><span class="p">(</span><span class="n">dist_object</span><span class="p">,</span> <span class="n">cov</span><span class="p">,</span> <span class="n">beta</span><span class="p">,</span> <span class="n">itam_error1</span><span class="p">,</span> <span class="n">itam_error2</span><span class="p">)</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">corr</span> <span class="o">=</span> <span class="n">corr</span>
 
-        <span class="k">else</span><span class="p">:</span>
-            <span class="k">if</span> <span class="n">cov</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
-                <span class="bp">self</span><span class="o">.</span><span class="n">C_z</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">eye</span><span class="p">(</span><span class="n">samples</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span>
-                <span class="bp">self</span><span class="o">.</span><span class="n">z</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">transform_x_to_z</span><span class="p">(</span><span class="n">samples</span><span class="p">,</span> <span class="n">dist_object</span><span class="p">)</span>
-                <span class="bp">self</span><span class="o">.</span><span class="n">u</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">z</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">distribution</span> <span class="o">=</span> <span class="p">[</span><span class="kc">None</span><span class="p">]</span> <span class="o">*</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">dist_name</span><span class="p">)</span>
+            <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">dist_name</span><span class="p">)):</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">distribution</span><span class="p">[</span><span class="n">j</span><span class="p">]</span> <span class="o">=</span> <span class="n">Distribution</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">dist_name</span><span class="p">[</span><span class="n">j</span><span class="p">])</span>
 
-                <span class="bp">self</span><span class="o">.</span><span class="n">Jxu</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">eye</span><span class="p">(</span><span class="n">samples</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span>
+            <span class="c1"># Check for variables that are  standard normal</span>
+            <span class="n">count</span> <span class="o">=</span> <span class="mi">0</span>
+            <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">dist_name</span><span class="p">)):</span>
+                <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">dist_name</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span> <span class="o">==</span> <span class="s1">&#39;normal&#39;</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">dist_params</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">==</span> <span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">]:</span>
+                    <span class="n">count</span> <span class="o">=</span> <span class="n">count</span> <span class="o">+</span> <span class="mi">1</span>
 
+            <span class="k">if</span> <span class="n">count</span> <span class="o">==</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">dist_name</span><span class="p">):</span>  <span class="c1"># Case where the variables are all standard normal</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">samplesN01</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">samples</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+                <span class="n">m</span><span class="p">,</span> <span class="n">n</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">shape</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">samples</span><span class="p">)</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">samples</span> <span class="o">=</span> <span class="n">input_samples</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">Jacobian</span> <span class="o">=</span> <span class="nb">list</span><span class="p">()</span>
+                <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">m</span><span class="p">):</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">Jacobian</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">identity</span><span class="p">(</span><span class="n">n</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">dimension</span><span class="p">))</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">corr_norm</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">corr</span>
             <span class="k">else</span><span class="p">:</span>
-                <span class="bp">self</span><span class="o">.</span><span class="n">Cz</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">distortion_x_to_z</span><span class="p">(</span><span class="n">dist_object</span><span class="p">,</span> <span class="n">cov</span><span class="p">,</span> <span class="n">beta</span><span class="p">,</span> <span class="n">itam_error1</span><span class="p">,</span> <span class="n">itam_error2</span><span class="p">)</span>
-                <span class="n">z</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">transform_x_to_z</span><span class="p">(</span><span class="n">samples</span><span class="p">,</span> <span class="n">dist_object</span><span class="p">)</span>
-                <span class="bp">self</span><span class="o">.</span><span class="n">z</span> <span class="o">=</span> <span class="n">Correlate</span><span class="p">(</span><span class="n">z</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">Cz</span><span class="p">)</span><span class="o">.</span><span class="n">z</span>
-                <span class="bp">self</span><span class="o">.</span><span class="n">u</span> <span class="o">=</span> <span class="n">Uncorrelate</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">z</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">Cz</span><span class="p">)</span><span class="o">.</span><span class="n">u</span>
+                <span class="k">if</span> <span class="n">np</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">norm</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">corr</span> <span class="o">-</span> <span class="n">np</span><span class="o">.</span><span class="n">identity</span><span class="p">(</span><span class="n">n</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">corr</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]))</span> <span class="o">&lt;</span> <span class="mi">10</span> <span class="o">**</span> <span class="p">(</span><span class="o">-</span><span class="mi">8</span><span class="p">):</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">corr_norm</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">corr</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">corr_norm</span> <span class="o">=</span> <span class="n">itam</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">distribution</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">dist_params</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">corr</span><span class="p">,</span> <span class="n">beta</span><span class="p">,</span> <span class="n">itam_error1</span><span class="p">,</span>
+                                          <span class="n">itam_error2</span><span class="p">)</span>
 
-                <span class="bp">self</span><span class="o">.</span><span class="n">Jxu</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">jacobian_x_u</span><span class="p">(</span><span class="n">dist_object</span><span class="p">,</span> <span class="n">samples</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">u</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">Cz</span><span class="p">)</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">Jacobian</span> <span class="o">=</span> <span class="nb">list</span><span class="p">()</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">samplesNG</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">samples</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">samples</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros_like</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">samplesNG</span><span class="p">)</span>
 
-<div class="viewcode-block" id="Forward.distortion_x_to_z"><a class="viewcode-back" href="../../transformations.html#UQpy.Transformations.Forward.distortion_x_to_z">[docs]</a>    <span class="nd">@staticmethod</span>
-    <span class="k">def</span> <span class="nf">distortion_x_to_z</span><span class="p">(</span><span class="n">dist_object</span><span class="p">,</span> <span class="n">cov</span><span class="p">,</span> <span class="n">beta</span><span class="o">=</span><span class="mf">1.0</span><span class="p">,</span> <span class="n">itam_error1</span><span class="o">=</span><span class="mf">0.001</span><span class="p">,</span> <span class="n">itam_error2</span><span class="o">=</span><span class="mf">0.01</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">        This is a method to calculate the correlation matrix :math:`\mathbf{C_Z}` of the standard normal random vector</span>
-<span class="sd">        :math:`\mathbf{z}`  given the correlation matrix :math:`\mathbf{C_x}` of the random vector :math:`\mathbf{x}`</span>
-<span class="sd">        using the `ITAM` method (see ``Utilities`` class).</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">samples</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">jacobian</span> <span class="o">=</span> <span class="n">transform_ng_to_g</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">corr_norm</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">distribution</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">dist_params</span><span class="p">,</span>
+                                                                <span class="bp">self</span><span class="o">.</span><span class="n">samplesNG</span><span class="p">)</span>
 
-<span class="sd">        **Inputs:**</span>
+        <span class="c1"># If samples is an array</span>
+        <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">input_samples</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">):</span>
+            <span class="k">if</span> <span class="n">dimension</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="s2">&quot;UQpy: Dimension must be specified in &#39;Nataf&#39; when entering samples as an array.&quot;</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">dimension</span> <span class="o">=</span> <span class="n">dimension</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">samplesNG</span> <span class="o">=</span> <span class="n">input_samples</span>
+            <span class="k">if</span> <span class="n">corr</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="s2">&quot;UQpy: corr must be specified in &#39;Nataf&#39; when entering samples as an array.&quot;</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">corr</span> <span class="o">=</span> <span class="n">corr</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">dist_name</span> <span class="o">=</span> <span class="n">dist_name</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">dist_params</span> <span class="o">=</span> <span class="n">dist_params</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">dist_name</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">dist_params</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="s2">&quot;UQpy: Marginal distributions and their parameters must be specified in &#39;Nataf&#39; &quot;</span>
+                                   <span class="s2">&quot;when entering samples as an array.&quot;</span><span class="p">)</span>
 
-<span class="sd">        * **dist_object** ((list of ) ``Distribution`` object(s)):</span>
-<span class="sd">                Probability distribution of each random variable. Must be an object of type</span>
-<span class="sd">                ``DistributionContinuous1D`` or ``JointInd``.</span>
+            <span class="c1"># Ensure the dimensions of dist_name are consistent</span>
+            <span class="k">if</span> <span class="nb">type</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">dist_name</span><span class="p">)</span><span class="o">.</span><span class="vm">__name__</span> <span class="o">!=</span> <span class="s1">&#39;list&#39;</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">dist_name</span> <span class="o">=</span> <span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">dist_name</span><span class="p">]</span>
+            <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">dist_name</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">dimension</span> <span class="o">!=</span> <span class="mi">1</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">dist_name</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">dist_name</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">dimension</span>
 
-<span class="sd">        * **cov** (`ndarray`):</span>
-<span class="sd">            The correlation  matrix (:math:`\mathbf{C_X}`) of the random vector **X** .</span>
+            <span class="c1"># Ensure that dist_params is a list of length dimension</span>
+            <span class="k">if</span> <span class="nb">type</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">dist_params</span><span class="p">)</span><span class="o">.</span><span class="vm">__name__</span> <span class="o">!=</span> <span class="s1">&#39;list&#39;</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">dist_params</span> <span class="o">=</span> <span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">dist_params</span><span class="p">]</span>
+            <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">dist_params</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">dimension</span> <span class="o">!=</span> <span class="mi">1</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">dist_params</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">dist_params</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">dimension</span>
 
-<span class="sd">            Default: The ``identity`` matrix.</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">distribution</span> <span class="o">=</span> <span class="p">[</span><span class="kc">None</span><span class="p">]</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">dimension</span>
+            <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">dist_name</span><span class="p">)):</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">distribution</span><span class="p">[</span><span class="n">j</span><span class="p">]</span> <span class="o">=</span> <span class="n">Distribution</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">dist_name</span><span class="p">[</span><span class="n">j</span><span class="p">])</span>
 
-<span class="sd">        * **itam_error1** (`float`):</span>
-<span class="sd">            A threshold value the `ITAM` method (see ``Utilities`` module).</span>
+            <span class="c1"># Check for variables that are non-Gaussian</span>
+            <span class="n">count</span> <span class="o">=</span> <span class="mi">0</span>
+            <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">distribution</span><span class="p">)):</span>
+                <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">dist_name</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span> <span class="o">==</span> <span class="s1">&#39;normal&#39;</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">dist_params</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">==</span> <span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">]:</span>
+                    <span class="n">count</span> <span class="o">=</span> <span class="n">count</span> <span class="o">+</span> <span class="mi">1</span>
 
-<span class="sd">            Default: 0.001</span>
-
-<span class="sd">        * **itam_error2** (`float`):</span>
-<span class="sd">            A threshold value the `ITAM` method (see ``Utilities`` module).</span>
-
-<span class="sd">            Default: 0.01</span>
-
-<span class="sd">        * **beta** (`float`):</span>
-<span class="sd">            A variable selected to optimize convergence speed and desired accuracy of the ITAM method (see</span>
-<span class="sd">            ``Utilities`` module).</span>
-
-<span class="sd">            Default: 1.0</span>
-
-<span class="sd">        **Output/Returns:**</span>
-
-<span class="sd">        * **cov_distorted** (`ndarray`):</span>
-<span class="sd">            Distorted correlation matrix (:math:`\mathbf{C_z}`) of the standard normal vector **Z**.</span>
-
-<span class="sd">        &quot;&quot;&quot;</span>
-        <span class="kn">from</span> <span class="nn">UQpy.Utilities</span> <span class="k">import</span> <span class="n">itam</span>
-        <span class="n">cov_distorted</span> <span class="o">=</span> <span class="n">itam</span><span class="p">(</span><span class="n">dist_object</span><span class="p">,</span> <span class="n">cov</span><span class="p">,</span> <span class="n">beta</span><span class="p">,</span> <span class="n">itam_error1</span><span class="p">,</span> <span class="n">itam_error2</span><span class="p">)</span>
-        <span class="k">return</span> <span class="n">cov_distorted</span></div>
-
-<div class="viewcode-block" id="Forward.transform_x_to_z"><a class="viewcode-back" href="../../transformations.html#UQpy.Transformations.Forward.transform_x_to_z">[docs]</a>    <span class="nd">@staticmethod</span>
-    <span class="k">def</span> <span class="nf">transform_x_to_z</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">dist_object</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">        This is a method to transform a vector :math:`\mathbf{x}` of  samples with marginal distributions</span>
-<span class="sd">        :math:`f_i(x_i)` and cumulative distributions :math:`F_i(x_i)` to a vector :math:`\mathbf{z}` of standard normal</span>
-<span class="sd">        samples  according to: :math:`Z_{i}=\Phi^{-1}(F_i(X_{i}))`, where :math:`\Phi` is the cumulative</span>
-<span class="sd">        distribution function of a standard  normal variable.</span>
-
-<span class="sd">        This is a static method, part of the ``Nataf`` class.</span>
-
-<span class="sd">        **Inputs:**</span>
-
-<span class="sd">        * **x** (`ndarray`):</span>
-<span class="sd">            Random vector of shape ``(nsamples, dimension)`` with prescribed probability distributions.</span>
-
-<span class="sd">        * **dist_object** ((list of) ``Distribution`` object(s)):</span>
-<span class="sd">                    Probability distribution of each random variable. Must be an object of type</span>
-<span class="sd">                    ``DistributionContinuous1D`` or ``JointInd``.</span>
-<span class="sd">        **Outputs:**</span>
-
-<span class="sd">        * **z** (`ndarray`):</span>
-<span class="sd">            Standard normal random vector of shape ``(nsamples, dimension)``.</span>
-
-<span class="sd">        &quot;&quot;&quot;</span>
-        <span class="n">z</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros_like</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
-
-        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">dist_object</span><span class="p">,</span> <span class="n">JointInd</span><span class="p">):</span>
-            <span class="k">if</span> <span class="nb">all</span><span class="p">(</span><span class="nb">hasattr</span><span class="p">(</span><span class="n">m</span><span class="p">,</span> <span class="s1">&#39;cdf&#39;</span><span class="p">)</span> <span class="k">for</span> <span class="n">m</span> <span class="ow">in</span> <span class="n">dist_object</span><span class="o">.</span><span class="n">marginals</span><span class="p">):</span>
-                <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">dist_object</span><span class="o">.</span><span class="n">marginals</span><span class="p">)):</span>
-                    <span class="n">z</span><span class="p">[:,</span> <span class="n">j</span><span class="p">]</span> <span class="o">=</span> <span class="n">stats</span><span class="o">.</span><span class="n">norm</span><span class="o">.</span><span class="n">ppf</span><span class="p">(</span><span class="n">dist_object</span><span class="o">.</span><span class="n">marginals</span><span class="p">[</span><span class="n">j</span><span class="p">]</span><span class="o">.</span><span class="n">cdf</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">atleast_2d</span><span class="p">(</span><span class="n">x</span><span class="p">[:,</span> <span class="n">j</span><span class="p">])</span><span class="o">.</span><span class="n">T</span><span class="p">))</span>
-        <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">dist_object</span><span class="p">,</span> <span class="n">DistributionContinuous1D</span><span class="p">):</span>
-            <span class="n">f_i</span> <span class="o">=</span> <span class="n">dist_object</span><span class="o">.</span><span class="n">cdf</span>
-            <span class="n">z</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">atleast_2d</span><span class="p">(</span><span class="n">stats</span><span class="o">.</span><span class="n">norm</span><span class="o">.</span><span class="n">ppf</span><span class="p">(</span><span class="n">f_i</span><span class="p">(</span><span class="n">x</span><span class="p">)))</span><span class="o">.</span><span class="n">T</span>
-        <span class="k">else</span><span class="p">:</span>
-            <span class="n">m</span><span class="p">,</span> <span class="n">n</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">shape</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
-            <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">n</span><span class="p">):</span>
-                <span class="n">f_i</span> <span class="o">=</span> <span class="n">dist_object</span><span class="p">[</span><span class="n">j</span><span class="p">]</span><span class="o">.</span><span class="n">cdf</span>
-                <span class="n">z</span><span class="p">[:,</span> <span class="n">j</span><span class="p">]</span> <span class="o">=</span> <span class="n">stats</span><span class="o">.</span><span class="n">norm</span><span class="o">.</span><span class="n">ppf</span><span class="p">(</span><span class="n">f_i</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">atleast_2d</span><span class="p">(</span><span class="n">x</span><span class="p">[:,</span> <span class="n">j</span><span class="p">])</span><span class="o">.</span><span class="n">T</span><span class="p">))</span>
-        <span class="k">return</span> <span class="n">z</span></div>
-
-<div class="viewcode-block" id="Forward.jacobian_x_u"><a class="viewcode-back" href="../../transformations.html#UQpy.Transformations.Forward.jacobian_x_u">[docs]</a>    <span class="nd">@staticmethod</span>
-    <span class="k">def</span> <span class="nf">jacobian_x_u</span><span class="p">(</span><span class="n">dist_object</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">z</span><span class="p">,</span> <span class="n">cov</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">        This is a method to calculate the jacobian of the transformation :math:`\mathbf{J}_{\mathbf{xu}}`.</span>
-
-<span class="sd">        This is a static method, part of the ``Nataf`` class.</span>
-
-<span class="sd">        **Inputs:**</span>
-
-<span class="sd">        * **u** (`ndarray`):</span>
-<span class="sd">            Standard normal vector of shape ``(nsamples, dimension)``.</span>
-
-<span class="sd">        * **x** (`ndarray`):</span>
-<span class="sd">            Random vector of shape ``(nsamples, dimension)``.</span>
-
-<span class="sd">        * **dist_object** ((list of) ``Distribution`` object(s)):</span>
-<span class="sd">                    Probability distribution of each random variable. Must be an object of type</span>
-<span class="sd">                    ``DistributionContinuous1D`` or ``JointInd``.</span>
-
-<span class="sd">        * **cov** (`ndarray`):</span>
-<span class="sd">        The covariance  matrix of shape ``(dimension, dimension)``.</span>
-
-<span class="sd">        **Outputs:**</span>
-
-<span class="sd">        * **jacobian_x_to_u** (`ndarray`):</span>
-<span class="sd">            Matrix of shape ``(dimension, dimension)``.</span>
-
-<span class="sd">        &quot;&quot;&quot;</span>
-        <span class="kn">from</span> <span class="nn">scipy.linalg</span> <span class="k">import</span> <span class="n">cholesky</span>
-        <span class="n">h</span> <span class="o">=</span> <span class="n">cholesky</span><span class="p">(</span><span class="n">cov</span><span class="p">,</span> <span class="n">lower</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
-        <span class="n">m</span><span class="p">,</span> <span class="n">n</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">shape</span><span class="p">(</span><span class="n">z</span><span class="p">)</span>
-        <span class="n">y</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">shape</span><span class="o">=</span><span class="p">(</span><span class="n">n</span><span class="p">,</span> <span class="n">n</span><span class="p">))</span>
-        <span class="n">jacobian_x_to_u</span> <span class="o">=</span> <span class="p">[</span><span class="kc">None</span><span class="p">]</span> <span class="o">*</span> <span class="n">m</span>
-        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">m</span><span class="p">):</span>
-            <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">n</span><span class="p">):</span>
-                <span class="n">xi</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="n">x</span><span class="p">[</span><span class="n">i</span><span class="p">,</span> <span class="n">j</span><span class="p">]])</span>
-                <span class="n">zi</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="n">z</span><span class="p">[</span><span class="n">i</span><span class="p">,</span> <span class="n">j</span><span class="p">]])</span>
-                <span class="n">y</span><span class="p">[</span><span class="n">j</span><span class="p">,</span> <span class="n">j</span><span class="p">]</span> <span class="o">=</span> <span class="n">stats</span><span class="o">.</span><span class="n">norm</span><span class="o">.</span><span class="n">pdf</span><span class="p">(</span><span class="n">zi</span><span class="p">)</span> <span class="o">/</span> <span class="n">dist_object</span><span class="p">[</span><span class="n">j</span><span class="p">]</span><span class="o">.</span><span class="n">pdf</span><span class="p">(</span><span class="n">xi</span><span class="p">)</span>
-            <span class="n">jacobian_x_to_u</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">solve</span><span class="p">(</span><span class="n">y</span><span class="p">,</span> <span class="n">h</span><span class="p">)</span>
-
-        <span class="k">return</span> <span class="n">jacobian_x_to_u</span></div></div>
-
-
-<div class="viewcode-block" id="Inverse"><a class="viewcode-back" href="../../transformations.html#UQpy.Transformations.Inverse">[docs]</a><span class="k">class</span> <span class="nc">Inverse</span><span class="p">(</span><span class="n">Nataf</span><span class="p">):</span>
-    <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">    A class perform the inverse Nataf transformation, i.e. transform independent standard normal variables to</span>
-<span class="sd">    arbitrarily distributed random variables. This is a an child class of the ``Nataf`` class.</span>
-
-<span class="sd">    **Inputs:**</span>
-
-<span class="sd">    * **samples** (`ndarray``):</span>
-<span class="sd">        Uncorrelated standard normal vector of shape ``(nsamples, dimension)`` with</span>
-<span class="sd">        ``(nsamples, dimension) = samples.shape``.</span>
-
-<span class="sd">    * **dist_object** ((list of) ``Distribution`` object(s)):</span>
-<span class="sd">            Probability distribution of each random variable. Must be an object of type</span>
-<span class="sd">                    ``DistributionContinuous1D`` or ``JointInd``.</span>
-
-<span class="sd">    * **cov** (`ndarray`):</span>
-<span class="sd">        The covariance  matrix of shape ``(dimension, dimension)`` (Optional) .</span>
-
-<span class="sd">        Default: The ``identity`` matrix.</span>
-
-<span class="sd">    **Output/Returns:**</span>
-
-<span class="sd">    * **x** (`ndarray`):</span>
-<span class="sd">        Independent standard normal vector of shape ``(nsamples, dimension)``.</span>
-
-<span class="sd">    * **Cx** (`ndarray`):</span>
-<span class="sd">        Distorted correlation matrix of the random vector **X** of shape ``(dimension, dimension)``.</span>
-
-<span class="sd">    * **Jux** (`ndarray`):</span>
-<span class="sd">        The jacobian of the transformation of shape ``(dimension, dimension)``.</span>
-
-<span class="sd">    **Methods:**</span>
-
-<span class="sd">    &quot;&quot;&quot;</span>
-
-    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">dist_object</span><span class="p">,</span> <span class="n">samples</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">cov</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
-
-        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">dist_object</span><span class="p">)</span>
-
-        <span class="k">if</span> <span class="n">samples</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
-            <span class="k">if</span> <span class="n">cov</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
-                <span class="k">raise</span> <span class="ne">Warning</span><span class="p">(</span><span class="s1">&#39;UQpy: No action is performed.&#39;</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">count</span> <span class="o">==</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">distribution</span><span class="p">):</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">samples</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">samplesNG</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">jacobian</span> <span class="o">=</span> <span class="nb">list</span><span class="p">()</span>
+                <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">distribution</span><span class="p">)):</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">jacobian</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">identity</span><span class="p">(</span><span class="n">n</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">dimension</span><span class="p">))</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">corr_norm</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">corr</span>
             <span class="k">else</span><span class="p">:</span>
-                <span class="bp">self</span><span class="o">.</span><span class="n">Cx</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">distortion_z_to_x</span><span class="p">(</span><span class="n">dist_object</span><span class="p">,</span> <span class="n">cov</span><span class="p">)</span>
+                <span class="k">if</span> <span class="n">np</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">norm</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">corr</span> <span class="o">-</span> <span class="n">np</span><span class="o">.</span><span class="n">identity</span><span class="p">(</span><span class="n">n</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">corr</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]))</span> <span class="o">&lt;</span> <span class="mi">10</span> <span class="o">**</span> <span class="p">(</span><span class="o">-</span><span class="mi">8</span><span class="p">):</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">corr_norm</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">corr</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">corr</span> <span class="o">=</span> <span class="n">corr</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">corr_norm</span> <span class="o">=</span> <span class="n">itam</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">distribution</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">dist_params</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">corr</span><span class="p">,</span> <span class="n">beta</span><span class="p">,</span> <span class="n">itam_error1</span><span class="p">,</span>
+                                          <span class="n">itam_error2</span><span class="p">)</span>
 
-        <span class="k">else</span><span class="p">:</span>
-            <span class="k">if</span> <span class="n">cov</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
-                <span class="bp">self</span><span class="o">.</span><span class="n">Cx</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">eye</span><span class="p">(</span><span class="n">samples</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span>
-                <span class="bp">self</span><span class="o">.</span><span class="n">z</span> <span class="o">=</span> <span class="n">samples</span>
-                <span class="bp">self</span><span class="o">.</span><span class="n">x</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">transform_z_to_x</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">z</span><span class="p">,</span> <span class="n">dist_object</span><span class="p">)</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">Jacobian</span> <span class="o">=</span> <span class="nb">list</span><span class="p">()</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">samples</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros_like</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">samplesNG</span><span class="p">)</span>
 
-                <span class="bp">self</span><span class="o">.</span><span class="n">Jux</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">eye</span><span class="p">(</span><span class="n">samples</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">samples</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">jacobian</span> <span class="o">=</span> <span class="n">transform_ng_to_g</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">corr_norm</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">distribution</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">dist_params</span><span class="p">,</span>
+                                                                <span class="bp">self</span><span class="o">.</span><span class="n">samplesNG</span><span class="p">)</span>
+
+        <span class="c1"># Perform ITAM to identify underlying Gaussian correlation without samples.</span>
+        <span class="k">elif</span> <span class="n">input_samples</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">corr</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">dist_name</span> <span class="o">=</span> <span class="n">dist_name</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">dist_params</span> <span class="o">=</span> <span class="n">dist_params</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">corr</span> <span class="o">=</span> <span class="n">corr</span>
+                <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">dist_name</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">dist_params</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                    <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="s2">&quot;UQpy: In order to use class &#39;Nataf&#39;, marginal distributions and their &quot;</span>
+                                       <span class="s2">&quot;parameters must be provided.&quot;</span><span class="p">)</span>
+
+                <span class="k">if</span> <span class="n">dimension</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">dimension</span> <span class="o">=</span> <span class="n">dimension</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">dimension</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">dist_name</span><span class="p">)</span>
+
+                <span class="c1"># Ensure the dimensions of dist_name are consistent</span>
+                <span class="k">if</span> <span class="nb">type</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">dist_name</span><span class="p">)</span><span class="o">.</span><span class="vm">__name__</span> <span class="o">!=</span> <span class="s1">&#39;list&#39;</span><span class="p">:</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">dist_name</span> <span class="o">=</span> <span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">dist_name</span><span class="p">]</span>
+                <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">dist_name</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">dimension</span> <span class="o">!=</span> <span class="mi">1</span><span class="p">:</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">dist_name</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">dist_name</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">dimension</span>
+
+                <span class="c1"># Ensure that dist_params is a list of length dimension</span>
+                <span class="k">if</span> <span class="nb">type</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">dist_params</span><span class="p">)</span><span class="o">.</span><span class="vm">__name__</span> <span class="o">!=</span> <span class="s1">&#39;list&#39;</span><span class="p">:</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">dist_params</span> <span class="o">=</span> <span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">dist_params</span><span class="p">]</span>
+                <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">dist_params</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">dimension</span> <span class="o">!=</span> <span class="mi">1</span><span class="p">:</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">dist_params</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">dist_params</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">dimension</span>
+
+                <span class="bp">self</span><span class="o">.</span><span class="n">distribution</span> <span class="o">=</span> <span class="p">[</span><span class="kc">None</span><span class="p">]</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">dimension</span>
+                <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">dist_name</span><span class="p">)):</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">distribution</span><span class="p">[</span><span class="n">j</span><span class="p">]</span> <span class="o">=</span> <span class="n">Distribution</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">dist_name</span><span class="p">[</span><span class="n">j</span><span class="p">])</span>
+
+                <span class="n">count</span> <span class="o">=</span> <span class="mi">0</span>
+                <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">dist_name</span><span class="p">)):</span>
+                    <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">dist_name</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span> <span class="o">==</span> <span class="s1">&#39;normal&#39;</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">dist_params</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">==</span> <span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">]:</span>
+                        <span class="n">count</span> <span class="o">=</span> <span class="n">count</span> <span class="o">+</span> <span class="mi">1</span>
+
+                <span class="k">if</span> <span class="n">count</span> <span class="o">==</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">distribution</span><span class="p">):</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">jacobian</span> <span class="o">=</span> <span class="nb">list</span><span class="p">()</span>
+                    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">distribution</span><span class="p">)):</span>
+                        <span class="bp">self</span><span class="o">.</span><span class="n">jacobian</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">identity</span><span class="p">(</span><span class="n">n</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">dimension</span><span class="p">))</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">corr_norm</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">corr</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="k">if</span> <span class="n">np</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">norm</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">corr</span> <span class="o">-</span> <span class="n">np</span><span class="o">.</span><span class="n">identity</span><span class="p">(</span><span class="n">n</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">corr</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]))</span> <span class="o">&lt;</span> <span class="mi">10</span> <span class="o">**</span> <span class="p">(</span><span class="o">-</span><span class="mi">8</span><span class="p">):</span>
+                        <span class="bp">self</span><span class="o">.</span><span class="n">corr_norm</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">corr</span>
+                    <span class="k">else</span><span class="p">:</span>
+                        <span class="bp">self</span><span class="o">.</span><span class="n">corr</span> <span class="o">=</span> <span class="n">corr</span>
+                        <span class="bp">self</span><span class="o">.</span><span class="n">corr_norm</span> <span class="o">=</span> <span class="n">itam</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">distribution</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">dist_params</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">corr</span><span class="p">,</span> <span class="n">beta</span><span class="p">,</span> <span class="n">itam_error1</span><span class="p">,</span>
+                                              <span class="n">itam_error2</span><span class="p">)</span>
 
             <span class="k">else</span><span class="p">:</span>
-                <span class="bp">self</span><span class="o">.</span><span class="n">Cx</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">distortion_z_to_x</span><span class="p">(</span><span class="n">dist_object</span><span class="p">,</span> <span class="n">cov</span><span class="p">)</span>
-                <span class="bp">self</span><span class="o">.</span><span class="n">z</span> <span class="o">=</span> <span class="n">Correlate</span><span class="p">(</span><span class="n">samples</span><span class="p">,</span> <span class="n">cov</span><span class="p">)</span><span class="o">.</span><span class="n">z</span>
-                <span class="bp">self</span><span class="o">.</span><span class="n">x</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">transform_z_to_x</span><span class="p">(</span><span class="n">samples</span><span class="p">,</span> <span class="n">dist_object</span><span class="p">)</span>
-
-                <span class="bp">self</span><span class="o">.</span><span class="n">Jux</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">jacobian_u_x</span><span class="p">(</span><span class="n">dist_object</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">z</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">x</span><span class="p">,</span> <span class="n">cov</span><span class="p">)</span>
-
-<div class="viewcode-block" id="Inverse.distortion_z_to_x"><a class="viewcode-back" href="../../transformations.html#UQpy.Transformations.Inverse.distortion_z_to_x">[docs]</a>    <span class="nd">@staticmethod</span>
-    <span class="k">def</span> <span class="nf">distortion_z_to_x</span><span class="p">(</span><span class="n">dist_object</span><span class="p">,</span> <span class="n">cov</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">        This is a method to calculate the correlation matrix :math:`\mathbf{C_x}` of the random vector</span>
-<span class="sd">        :math:`\mathbf{x}`  given the correlation matrix :math:`\mathbf{C_z}` of the standard normal random vector</span>
-<span class="sd">        :math:`\mathbf{z}` using the `correlation_distortion` method (see ``Utilities`` class). This is a static</span>
-<span class="sd">        method, part of the ``Inverse`` class.</span>
-
-<span class="sd">        **Inputs:**</span>
-
-<span class="sd">        * **dist_object** ((list of ) ``Distribution`` object(s)):</span>
-<span class="sd">                Probability distribution of each random variable. Must be an object of type</span>
-<span class="sd">                ``DistributionContinuous1D`` or ``JointInd``.</span>
-
-<span class="sd">        * **cov** (`ndarray`):</span>
-<span class="sd">            The correlation  matrix (:math:`\mathbf{C_z}`) of the standard normal vector **z** .</span>
-
-<span class="sd">            Default: The ``identity`` matrix.</span>
-
-<span class="sd">        **Output/Returns:**</span>
-
-<span class="sd">        * **cov_distorted** (`ndarray`):</span>
-<span class="sd">            Distorted correlation matrix (:math:`\mathbf{C_x}`) of the random vector **x**.</span>
-
-<span class="sd">        &quot;&quot;&quot;</span>
-        <span class="kn">from</span> <span class="nn">UQpy.Utilities</span> <span class="k">import</span> <span class="n">correlation_distortion</span>
-        <span class="n">cov_distorted</span> <span class="o">=</span> <span class="n">correlation_distortion</span><span class="p">(</span><span class="n">dist_object</span><span class="p">,</span> <span class="n">cov</span><span class="p">)</span>
-        <span class="k">return</span> <span class="n">cov_distorted</span></div>
-
-<div class="viewcode-block" id="Inverse.transform_z_to_x"><a class="viewcode-back" href="../../transformations.html#UQpy.Transformations.Inverse.transform_z_to_x">[docs]</a>    <span class="nd">@staticmethod</span>
-    <span class="k">def</span> <span class="nf">transform_z_to_x</span><span class="p">(</span><span class="n">z</span><span class="p">,</span> <span class="n">dist_object</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">        This is a method to transform a vector :math:`\mathbf{z}` of  standard normal samples to a vector</span>
-<span class="sd">        :math:`\mathbf{x}` of  samples with marginal distributions :math:`f_i(x_i)` and cumulative distributions</span>
-<span class="sd">        :math:`F_i(x_i)` according to: :math:`Z_{i}=F_i^{-1}(\Phi(Z_{i}))`, where :math:`\Phi` is the cumulative</span>
-<span class="sd">        distribution function of a standard  normal variable.</span>
-
-<span class="sd">        This is a static method, part of the ``Nataf`` class.</span>
-
-<span class="sd">        **Inputs:**</span>
-
-<span class="sd">        * **z** (`ndarray`):</span>
-<span class="sd">            Standard normal vector of shape ``(nsamples, dimension)``.</span>
-
-<span class="sd">        * **dist_object** ((list of) ``Distribution`` object(s)):</span>
-<span class="sd">                    Probability distribution of each random variable. Must be an object of type</span>
-<span class="sd">                    ``DistributionContinuous1D`` or ``JointInd``.</span>
-
-<span class="sd">        **Outputs:**</span>
-
-<span class="sd">        * **x** (`ndarray`):</span>
-<span class="sd">            Random vector of shape ``(nsamples, dimension)`` with prescribed probability distribution.</span>
-
-<span class="sd">        &quot;&quot;&quot;</span>
-
-        <span class="n">x</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros_like</span><span class="p">(</span><span class="n">z</span><span class="p">)</span>
-
-        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">dist_object</span><span class="p">,</span> <span class="n">JointInd</span><span class="p">):</span>
-            <span class="k">if</span> <span class="nb">all</span><span class="p">(</span><span class="nb">hasattr</span><span class="p">(</span><span class="n">m</span><span class="p">,</span> <span class="s1">&#39;icdf&#39;</span><span class="p">)</span> <span class="k">for</span> <span class="n">m</span> <span class="ow">in</span> <span class="n">dist_object</span><span class="o">.</span><span class="n">marginals</span><span class="p">):</span>
-                <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">dist_object</span><span class="o">.</span><span class="n">marginals</span><span class="p">)):</span>
-                    <span class="n">f_i</span> <span class="o">=</span> <span class="n">dist_object</span><span class="o">.</span><span class="n">marginals</span><span class="p">[</span><span class="n">j</span><span class="p">]</span><span class="o">.</span><span class="n">icdf</span>
-                    <span class="n">x</span><span class="p">[:,</span> <span class="n">j</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">atleast_2d</span><span class="p">(</span><span class="n">f_i</span><span class="p">(</span><span class="n">stats</span><span class="o">.</span><span class="n">norm</span><span class="o">.</span><span class="n">cdf</span><span class="p">(</span><span class="n">z</span><span class="p">[:,</span> <span class="n">j</span><span class="p">])</span><span class="o">.</span><span class="n">T</span><span class="p">))</span>
-        <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">dist_object</span><span class="p">,</span> <span class="n">DistributionContinuous1D</span><span class="p">):</span>
-            <span class="n">f_i</span> <span class="o">=</span> <span class="n">dist_object</span><span class="o">.</span><span class="n">icdf</span>
-            <span class="n">x</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">atleast_2d</span><span class="p">(</span><span class="n">f_i</span><span class="p">(</span><span class="n">stats</span><span class="o">.</span><span class="n">norm</span><span class="o">.</span><span class="n">cdf</span><span class="p">(</span><span class="n">z</span><span class="p">)))</span><span class="o">.</span><span class="n">T</span>
-        <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">dist_object</span><span class="p">,</span> <span class="nb">list</span><span class="p">):</span>
-            <span class="n">_</span><span class="p">,</span> <span class="n">n</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">shape</span><span class="p">(</span><span class="n">z</span><span class="p">)</span>
-            <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">n</span><span class="p">):</span>
-                <span class="n">f_i</span> <span class="o">=</span> <span class="n">dist_object</span><span class="p">[</span><span class="n">j</span><span class="p">]</span><span class="o">.</span><span class="n">icdf</span>
-                <span class="n">x</span><span class="p">[:,</span> <span class="n">j</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">atleast_2d</span><span class="p">(</span><span class="n">f_i</span><span class="p">(</span><span class="n">stats</span><span class="o">.</span><span class="n">norm</span><span class="o">.</span><span class="n">cdf</span><span class="p">(</span><span class="n">z</span><span class="p">[:,</span> <span class="n">j</span><span class="p">])</span><span class="o">.</span><span class="n">T</span><span class="p">))</span>
-        <span class="k">return</span> <span class="n">x</span></div>
-
-<div class="viewcode-block" id="Inverse.jacobian_u_x"><a class="viewcode-back" href="../../transformations.html#UQpy.Transformations.Inverse.jacobian_u_x">[docs]</a>    <span class="nd">@staticmethod</span>
-    <span class="k">def</span> <span class="nf">jacobian_u_x</span><span class="p">(</span><span class="n">dist_object</span><span class="p">,</span> <span class="n">z</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">cov</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">        This is a method to calculate the jacobian of the transformation :math:`\mathbf{J}_{\mathbf{ux}}`.</span>
-
-<span class="sd">        This is a static method, part of the ``Nataf`` class.</span>
-
-<span class="sd">        **Inputs:**</span>
-
-<span class="sd">        * **u** (`ndarray`):</span>
-<span class="sd">            Standard normal vector of shape ``(nsamples, dimension)``.</span>
-
-<span class="sd">        * **x** (`ndarray`):</span>
-<span class="sd">            Random vector of shape ``(nsamples, dimension)``.</span>
-
-<span class="sd">        * **dist_object** ((list of) ``Distribution`` object(s)):</span>
-<span class="sd">                    Probability distribution of each random variable. Must be an object of type</span>
-<span class="sd">                    ``DistributionContinuous1D`` or ``JointInd``.</span>
-
-<span class="sd">        * **cov** (`ndarray`):</span>
-<span class="sd">        The covariance  matrix of shape ``(dimension, dimension)``.</span>
-
-<span class="sd">        **Outputs:**</span>
-
-<span class="sd">        * **jacobian_u_to_x** (`ndarray`):</span>
-<span class="sd">            Matrix of shape ``(dimension, dimension)``.</span>
-
-<span class="sd">        &quot;&quot;&quot;</span>
-        <span class="kn">from</span> <span class="nn">scipy.linalg</span> <span class="k">import</span> <span class="n">cholesky</span>
-        <span class="n">h</span> <span class="o">=</span> <span class="n">cholesky</span><span class="p">(</span><span class="n">cov</span><span class="p">,</span> <span class="n">lower</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
-        <span class="n">m</span><span class="p">,</span> <span class="n">n</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">shape</span><span class="p">(</span><span class="n">z</span><span class="p">)</span>
-        <span class="n">y</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">shape</span><span class="o">=</span><span class="p">(</span><span class="n">n</span><span class="p">,</span> <span class="n">n</span><span class="p">))</span>
-        <span class="n">jacobian_u_to_x</span> <span class="o">=</span> <span class="p">[</span><span class="kc">None</span><span class="p">]</span> <span class="o">*</span> <span class="n">m</span>
-        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">m</span><span class="p">):</span>
-            <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">n</span><span class="p">):</span>
-                <span class="n">xi</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="n">x</span><span class="p">[</span><span class="n">i</span><span class="p">,</span> <span class="n">j</span><span class="p">]])</span>
-                <span class="n">zi</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="n">z</span><span class="p">[</span><span class="n">i</span><span class="p">,</span> <span class="n">j</span><span class="p">]])</span>
-                <span class="n">y</span><span class="p">[</span><span class="n">j</span><span class="p">,</span> <span class="n">j</span><span class="p">]</span> <span class="o">=</span> <span class="n">dist_object</span><span class="p">[</span><span class="n">j</span><span class="p">]</span><span class="o">.</span><span class="n">pdf</span><span class="p">(</span><span class="n">xi</span><span class="p">)</span> <span class="o">/</span> <span class="n">stats</span><span class="o">.</span><span class="n">norm</span><span class="o">.</span><span class="n">pdf</span><span class="p">(</span><span class="n">zi</span><span class="p">)</span>
-            <span class="n">jacobian_u_to_x</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">solve</span><span class="p">(</span><span class="n">h</span><span class="p">,</span> <span class="n">y</span><span class="p">)</span>
-
-        <span class="k">return</span> <span class="n">jacobian_u_to_x</span></div></div>
-
-
-<div class="viewcode-block" id="Uncorrelate"><a class="viewcode-back" href="../../transformations.html#UQpy.Transformations.Uncorrelate">[docs]</a><span class="k">class</span> <span class="nc">Uncorrelate</span><span class="p">:</span>
-    <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">    Remove correlation from correlated standard normal random variables.</span>
-
-<span class="sd">    **Inputs:**</span>
-
-<span class="sd">    * **samples** (`ndarray`):</span>
-<span class="sd">        Correlated standard normal vector of shape ``(nsamples, dimension)``.</span>
-
-<span class="sd">    * **cov** (`ndarray`):</span>
-<span class="sd">        The correlation matrix. Must be an ``ndarray`` of shape ``(u.shape[1], u.shape[1])``.</span>
-
-<span class="sd">    **Outputs:**</span>
-
-<span class="sd">    * **u** (`ndarray`):</span>
-<span class="sd">        Correlated standard normal vector of shape ``(nsamples, dimension)``.</span>
-
-<span class="sd">    &quot;&quot;&quot;</span>
-
-    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">samples</span><span class="p">,</span> <span class="n">corr</span><span class="p">):</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">z</span> <span class="o">=</span> <span class="n">samples</span>
-        <span class="kn">from</span> <span class="nn">scipy.linalg</span> <span class="k">import</span> <span class="n">cholesky</span>
-        <span class="n">h</span> <span class="o">=</span> <span class="n">cholesky</span><span class="p">(</span><span class="n">corr</span><span class="p">,</span> <span class="n">lower</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">u</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">dot</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">inv</span><span class="p">(</span><span class="n">h</span><span class="p">),</span> <span class="bp">self</span><span class="o">.</span><span class="n">z</span><span class="o">.</span><span class="n">T</span><span class="p">)</span><span class="o">.</span><span class="n">T</span></div>
-
-
-<div class="viewcode-block" id="Correlate"><a class="viewcode-back" href="../../transformations.html#UQpy.Transformations.Correlate">[docs]</a><span class="k">class</span> <span class="nc">Correlate</span><span class="p">:</span>
-    <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">    Induce correlation to uncorrelated standard normal random variables.</span>
-
-<span class="sd">    **Inputs:**</span>
-
-<span class="sd">    * **samples** (`ndarray`):</span>
-<span class="sd">        Uncorrelated standard normal vector of shape ``(nsamples, dimension)``.</span>
-
-<span class="sd">    * **cov** (`ndarray`):</span>
-<span class="sd">        The correlation matrix. Must be an ``ndarray`` of shape ``(u.shape[1], u.shape[1])``.</span>
-
-<span class="sd">    **Outputs:**</span>
-
-<span class="sd">    * **z** (`ndarray`):</span>
-<span class="sd">        Correlated standard normal vector of shape ``(nsamples, dimension)``.</span>
-
-<span class="sd">    &quot;&quot;&quot;</span>
-
-    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">samples</span><span class="p">,</span> <span class="n">cov</span><span class="p">):</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">u</span> <span class="o">=</span> <span class="n">samples</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">corr</span> <span class="o">=</span> <span class="n">cov</span>
-        <span class="kn">from</span> <span class="nn">scipy.linalg</span> <span class="k">import</span> <span class="n">cholesky</span>
-        <span class="n">h</span> <span class="o">=</span> <span class="n">cholesky</span><span class="p">(</span><span class="n">cov</span><span class="p">,</span> <span class="n">lower</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">z</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">dot</span><span class="p">(</span><span class="n">h</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">u</span><span class="o">.</span><span class="n">T</span><span class="p">)</span><span class="o">.</span><span class="n">T</span></div>
+                <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="s2">&quot;UQpy: To perform the Nataf transformation without samples, a correlation &quot;</span>
+                                   <span class="s2">&quot;function &#39;corr&#39; must be provided.&quot;</span><span class="p">)</span></div>
 </pre></div>
 
           </div>
@@ -588,7 +686,7 @@
       &copy;2020, SURG, JHU.
       
       |
-      Powered by <a href="http://sphinx-doc.org/">Sphinx 2.4.4</a>
+      Powered by <a href="http://sphinx-doc.org/">Sphinx 2.4.0</a>
       &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.7.12</a>
       
     </div>
