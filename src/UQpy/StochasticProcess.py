@@ -485,6 +485,7 @@ class BSRM:
             if self.verbose:
                 print('UQpy: Stochastic Process: Starting simulation of uni-variate Stochastic Processes.')
                 print('UQpy: The number of dimensions is :', self.number_of_dimensions)
+            self._compute_bicoherence_uni()
             phi = np.random.uniform(
                 size=np.append(self.nsamples, np.ones(self.number_of_dimensions, dtype=np.int32)
                                * self.number_frequency_intervals)) * 2 * np.pi
