@@ -13,6 +13,7 @@ import UQpy.RunModel
 import UQpy.SampleMethods
 import UQpy.StochasticProcess
 import UQpy.Surrogates
+import UQpy.Sensitivity
 import UQpy.Transformations
 import UQpy.Utilities
 from UQpy.DimensionReduction import *
@@ -23,6 +24,7 @@ from UQpy.RunModel import *
 from UQpy.SampleMethods import *
 from UQpy.StochasticProcess import *
 from UQpy.Surrogates import *
+from UQpy.Sensitivity import *
 from UQpy.Transformations import *
 from UQpy.Utilities import *
 
