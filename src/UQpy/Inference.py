@@ -910,7 +910,8 @@ class BayesModelSelection:
     # Authors: Audrey Olivier, Yuchen Zhou
     # Last modified: 01/24/2020 by Audrey Olivier
     def __init__(self, candidate_models, data, prior_probabilities=None, method_evidence_computation='harmonic_mean',
-                 random_state=None, verbose=False, nsamples=None, nsamples_per_chain=None, **kwargs):
+                 random_state=None, verbose=False, nsamples=None, nsamples_per_chain=None, kwargs_evidence=None,
+                 **kwargs):
 
         # Check inputs: candidate_models is a list of instances of Model, data must be provided, and input arguments
         # for MCMC must be provided as a list of length len(candidate_models)
@@ -921,6 +922,7 @@ class BayesModelSelection:
         self.nmodels = len(candidate_models)
         self.data = data
         self.method_evidence_computation = method_evidence_computation
+        self.kwargs_evidence = kwargs_evidence
         self.random_state = random_state
         if isinstance(self.random_state, int):
             self.random_state = np.random.RandomState(self.random_state)
@@ -993,10 +995,9 @@ class BayesModelSelection:
                 bayes_estimator.run(nsamples_per_chain=nsamples_per_chain[i])
             else:
                 raise ValueError('UQpy: ither nsamples or nsamples_per_chain should be non None')
-            self.evidences[i] = self._estimate_evidence(
-                method_evidence_computation=self.method_evidence_computation,
-                inference_model=inference_model, posterior_samples=bayes_estimator.sampler.samples,
-                log_posterior_values=bayes_estimator.sampler.log_pdf_values)
+            self.evidences[i] = self.estimate_evidence(
+                method_evidence_computation=self.method_evidence_computation, inference_model=inference_model,
+                mcmc_sampler=bayes_estimator.sampler, **self.kwargs_evidence)
 
         # Compute posterior probabilities
         self.probabilities = self._compute_posterior_probabilities(
@@ -1024,41 +1025,87 @@ class BayesModelSelection:
         self.evidences = [self.evidences[i] for i in sort_idx]
 
     @staticmethod
-    def _estimate_evidence(method_evidence_computation, inference_model, posterior_samples, log_posterior_values):
+    def estimate_evidence(method_evidence_computation, inference_model, mcmc_sampler, **kwargs_evidence):
         """
-        Compute the model evidence, given samples from the parameter posterior pdf.
+        Compute the model evidence, given samples from the parameter posterior pdf. Three methods are currently
+        supported:
 
-        As of V3, only the harmonic mean method is supported for evidence computation. This function
-        is a utility function (static method), called within the run_estimation method.
+        * Harmonic mean method :math:`evidence=\\frac{1}{\\frac{1}{N}\sum_{i=1}^{N}\\frac{1}{L(x^{(i)})}}`
+        where :math:`L(x^{(i)}), i=1:N` are the likelihood values of posterior samples. This method is known to yield
+        high variance results.
+
+        * Truncated harmonic mean - assumes unimodal posterior pdf. This method only uses samples from the high
+        posterior density (HPD) region in the formula above, it assumes that this HPD region can be approximates as an
+        ellispoid whose volume can be easily computed, see
+        https://openaccess.leidenuniv.nl/bitstream/handle/1887/17917/05.pdf?sequence=4.
+
+        * Thermodynamic integration - requires the mcmc sampler to be a Parallel-Tempering MCMC algorithm, see the
+        ``SampleMethods.PT_MCMC`` class and its `evaluate_log_evidence` method.
 
         **Inputs:**
 
-        :param method_evidence_computation: Method for evidence computation. As of v3, only the harmonic mean is
-                                            supported.
-        :type method_evidence_computation: str
+        * **method_evidence_computation** (`str`):
+            Method for evidence computation.
 
-        :param inference_model: Inference model.
-        :type inference_model: object of class InferenceModel
+        * **inference_model** (object of class InferenceModel):
+            Inference model.
 
-        :param posterior_samples: Samples from parameter posterior density.
-        :type posterior_samples: ndarray of shape (nsamples, nparams)
+        * **mcmc_sampler** (object of class MCMC):
+            Contains samples and log likelihood values from parameter posterior density
 
-        :param log_posterior_values: Log-posterior values of the posterior samples.
-        :type log_posterior_values: ndarray of shape (nsamples, )
+        * kwargs_evidence (`dict`):
+            Key-word arguments, depend on method used for evidence computation:
+
+            * 'harmonic_mean': no extra inputs
+
+            * 'truncated_hm_unimodal': input `perc_samples_hpd` percentage of samples to keep in the HPD region
+
+            * 'thermodynamic_integration': no extra inputs, requires mcmc_sampler to be a PT_MCMC object
 
         **Output/Returns:**
 
-        :return evidence: Value of evidence p(data|M).
-        :rtype evidence: float
+        * **evidence** (`float`):
+            Value of evidence
 
         """
+        posterior_samples = mcmc_sampler.samples
+        log_posterior_values = mcmc_sampler.log_pdf_values
         if method_evidence_computation.lower() == 'harmonic_mean':
             # samples[int(0.5 * len(samples)):]
             log_likelihood_values = log_posterior_values - inference_model.prior.log_pdf(x=posterior_samples)
-            temp = np.mean(1./np.exp(log_likelihood_values))
+            evidence_value = 1. / np.mean(1. / np.exp(log_likelihood_values))
+        elif method_evidence_computation.lower() == 'truncated_hm_unimodal':
+            # See https://openaccess.leidenuniv.nl/bitstream/handle/1887/17917/05.pdf?sequence=4
+            # sort samples in the mode
+            nsamples, dimension = posterior_samples.shape
+            nsamples_hpd = int(kwargs_evidence['perc_samples_hpd'] * nsamples)
+            arg_samples_hpd = np.argsort(log_posterior_values, axis=0)[::-1][:nsamples_hpd]
+            samples_hpd = posterior_samples[arg_samples_hpd]
+            # compute volume of that HPD region (ellipsoid)
+            # mean_ellispoid = np.mean(samples_hpd[1:int(nsamples_hpd / 20 + 1)])
+            # cov_ellispoid = np.cov(samples_hpd[1:int(nsamples_hpd / 5 + 1)], rowvar=False, bias=True)
+            mean_ellipsoid = np.atleast_1d(np.mean(samples_hpd[:nsamples_hpd], axis=0))
+            cov_ellipsoid = np.atleast_2d(np.cov(samples_hpd[:nsamples_hpd], rowvar=False, bias=True))
+            from scipy.spatial.distance import cdist
+            all_dists = cdist(XA=samples_hpd, XB=mean_ellipsoid[np.newaxis, :], metric='mahalanobis')
+            r = np.amax(all_dists)
+            from scipy.special import loggamma
+            log_vol_hpd = dimension * (np.log(r) + 0.5 * np.log(np.pi)) - loggamma(1 + dimension / 2) + 0.5 * \
+                          np.linalg.slogdet(cov_ellipsoid)[1]  # volume of HPD region
+            # compute evidence
+            post_hpd = np.mean(np.exp(-log_posterior_values[arg_samples_hpd]))
+            evidence_value = np.exp(log_vol_hpd) / (nsamples_hpd / nsamples * post_hpd)
+        elif method_evidence_computation.lower() == 'thermodynamic_integration':
+            from UQpy.SampleMethods import PT_MCMC
+            if not isinstance(mcmc_sampler, PT_MCMC):
+                raise ValueError('UQpy: thermodynamic integration for evidence computation requires results from a '
+                                 'parallel-tempering MCMC scheme')
+            log_evidence = mcmc_sampler.evaluate_log_evidence()
+            evidence_value = np.exp(log_evidence)
         else:
-            raise ValueError('UQpy: Only the harmonic mean method is currently supported')
-        return 1./temp
+            raise ValueError('UQpy: input method_evidence_computation should be one of "harmonic_mean", '
+                             '"truncated_hm_unimodal", "thermodynamic_integration".')
+        return evidence_value
 
     @staticmethod
     def _compute_posterior_probabilities(prior_probabilities, evidence_values):
