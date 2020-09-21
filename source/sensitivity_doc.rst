@@ -21,7 +21,7 @@ For each input :math:`X_{k}`, the elementary effect is computed as:
 
 where :math:`\Delta` is chosen so that :math:`X_{k}+\Delta` is still in the allowable domain for every dimension k.
 
-The key idea of the original Morris method is to initiate trajectories from various “nominal” points :math:`X` randomly selected over the grid and then gradually advancing one :math:`\Delta` at a time between each model evaluation (one at a time OAT design), along a different dimension of the parameter space selected randomly (see an example of 5 trajectories in a 2D space on the left plot of the figure below). For :math:`r` trajectories (usually set :math:`r` between 5 and 50), the number of simulations required is :math:`r (d+1)`. 
+The key idea of the original Morris method (current implementation) is to initiate trajectories from various “nominal” points :math:`X` randomly selected over the grid and then gradually advancing one :math:`\Delta` at a time between each model evaluation (one at a time OAT design), along a different dimension of the parameter space selected randomly (see an example of 5 trajectories in a 2D space on the left plot of the figure below). For :math:`r` trajectories (usually set :math:`r` between 5 and 50), the number of simulations required is :math:`r (d+1)`. 
 
 The following sensitivity indices are computed from the elementary effects:
 
@@ -46,6 +46,10 @@ Morris Class Description
 .. autoclass:: UQpy.Sensitivity.Morris
 	:members:
 	
+	
+**Note: subclassing the Morris class**
+
+The user can subclass the Morris class to implement algorithms with better sampling of the trajectories for instance. In order to do so, the user can simply overwrite the `sample_trajectories` method, which should take as inputs the number of trajectories `ntrajectories` and any other user-defined input (transferred from the `run` method as kwargs).	
 
 .. [1] Campolongo, F., Cariboni, J., Saltelli, A., “An effective screening design for sensitivity analysis of large models”, Environmental Modelling & Software 22 (2007) 1509-1518.
 

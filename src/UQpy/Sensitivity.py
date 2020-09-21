@@ -33,7 +33,8 @@ class Morris:
     **Inputs:**
 
     * **runmodel_object** (``RunModel`` object):
-        The computational model. It should be of type ``RunModel`` (see ``RunModel`` class).
+        The computational model. It should be of type ``RunModel`` (see ``RunModel`` class). The output QoI can be a
+        scalar or vector of length `ny`, then the sensitivity indices of all `ny` outputs are computed independently.
 
     * **dist_object** ((list of) ``Distribution`` object(s)):
         List of ``Distribution`` objects corresponding to each random variable, or ``JointInd`` object (multivariate RV
@@ -45,16 +46,16 @@ class Morris:
 
     * **delta** (`float`):
         Size of the jump between two consecutive evaluation points, must be a multiple of delta should be in
-        {1/(nlevels-1), ..., 1-1/(nlevels-1)}.
+        `{1/(nlevels-1), ..., 1-1/(nlevels-1)}`.
 
-        Default: :math:`delta = \frac{nlevels}{2 * (nlevels-1)}` if nlevels is even, delta=0.5 if nlevels is odd.
+        Default: :math:`delta=\\frac{nlevels}{2 * (nlevels-1)}` if nlevels is even, delta=0.5 if nlevels is odd.
 
     * **random_state** (None or `int` or ``numpy.random.RandomState`` object):
         Random seed used to initialize the pseudo-random number generator. Default is None.
 
     * **ntrajectories** (`int`):
         Number of random trajectories, usually chosen between 5 and 10. The number of model evaluations is
-        ntrajectories * (d+1). If None, the `Morris` object is created but not run (see `run` method)
+        `ntrajectories * (d+1)`. If None, the `Morris` object is created but not run (see `run` method)
 
     * **kwargs**:
         Additional key-word arguments transferred to the ``sample_trajectories`` method that samples trajectories where
@@ -63,19 +64,19 @@ class Morris:
     **Attributes:**
 
     * **elementary_effects** (`ndarray`):
-        Elementary effects :math:`EE_{k}`, `ndarray` of shape (ntrajectories, d, ny).
+        Elementary effects :math:`EE_{k}`, `ndarray` of shape `(ntrajectories, d, ny)`.
 
     * **mustar_indices** (`ndarray`):
-        First Morris sensitivity index :math:`\mu_{k}^{\star}`, ndarray of shape (d, ny)
+        First Morris sensitivity index :math:`\mu_{k}^{\star}`, `ndarray` of shape `(d, ny)`
 
     * **sigma_indices** (`ndarray`):
-        Second Morris sensitivity index :math:`\sigma_{k}`, ndarray of shape (d, ny)
+        Second Morris sensitivity index :math:`\sigma_{k}`, `ndarray` of shape `(d, ny)`
 
     * **trajectories_unit_hypercube** (`ndarray`):
-        Trajectories in the unit hypercube, ndarray of shape (ntrajectories, d+1, d)
+        Trajectories in the unit hypercube, `ndarray` of shape `(ntrajectories, d+1, d)`
 
     * **trajectories_physical_space** (`ndarray`):
-        Trajectories in the physical space, ndarray of shape (ntrajectories, d+1, d)
+        Trajectories in the physical space, `ndarray` of shape `(ntrajectories, d+1, d)`
 
     **Methods:**
     """
@@ -96,7 +97,6 @@ class Morris:
             raise ValueError
         if any(icdf is None for icdf in self.icdfs):
             raise ValueError
-        # TODO: talk about input dimension, use var_names of RunModel? Are they always provided?
         self.dimension = len(self.icdfs)
         if self.dimension != len(self.runmodel_object.var_names):
             raise ValueError
@@ -146,7 +146,8 @@ class Morris:
 
         * **ntrajectories** (`int`):
             Number of random trajectories. Usually chosen between 5 and 10. The number of model evaluations is
-            ntrajectories * (d+1).
+            `ntrajectories * (d+1)`.
+
 
         """
         # Compute trajectories and elementary effects - append if any already exist
@@ -173,7 +174,7 @@ class Morris:
 
         * **ntrajectories** (`int`):
             Number of random trajectories. Usually chosen between 5 and 10. The number of model evaluations is
-            ntrajectories * (d+1).
+            `ntrajectories * (d+1)`.
 
         * **maximize_dispersion** (`bool`):
             If True, generate a large number of design trajectories and keep the ones that maximize dispersion between
@@ -253,7 +254,6 @@ class Morris:
         """
         r, _, d = trajectories_physical_space.shape
         # Run the model for all replicates
-        qois = []
         elementary_effects = []
         for samples in trajectories_physical_space:
             self.runmodel_object.run(samples=samples, append_samples=False)
