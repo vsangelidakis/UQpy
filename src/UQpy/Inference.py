@@ -868,7 +868,12 @@ class BayesModelSelection:
         Prior probabilities of each model, default is [1/nmodels, ] * nmodels
 
     * **method_evidence_computation** (`str`):
-        as of v3, only the harmonic mean method is supported
+        Three methods for evidence computation are currently supported, this input can be set to "harmonic_mean",
+        "truncated_hm_unimodal", "thermodynamic_integration". The same method is used for all models.
+
+    * **kwargs_evidence** (`dict`):
+        Key-worded arguments that will be transferred to the `compute_evidence` method. The same parameters are used
+        for all models.
 
     * **kwargs**:
         Keyword arguments to the ``BayesParameterEstimation`` class, for each model.
