@@ -1733,7 +1733,7 @@ class DiffusionMaps:
           ``Grassmann`` class is used in a dataset a kernel matrix can be constructed with both the left and right
           singular eigenvectors.
 
-    * **kernel_grassmann** (`str`)
+    * **kernel_composition** (`str`)
         It assumes the values 'left' and 'right' for the left and right singular eigenvectors used to compute the kernel
         matrix, respectively. Moreover, if 'sum' is selected, it means that the kernel matrix is composed by the sum of
         the kernel matrices estimated using the left and right singular eigenvectors. On the other hand, if 'prod' is used
