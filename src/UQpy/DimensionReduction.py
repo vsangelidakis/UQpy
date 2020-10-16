@@ -1761,14 +1761,14 @@ class DiffusionMaps:
 
     """
 
-    def __init__(self, alpha=0.5, n_evecs=2, sparse=False, k_neighbors=1, kernel_object=None, kernel_grassmann=None):
+    def __init__(self, alpha=0.5, n_evecs=2, sparse=False, k_neighbors=1, kernel_object=None, kernel_composition=None):
 
         self.alpha = alpha
         self.n_evecs = n_evecs
         self.sparse = sparse
         self.k_neighbors = k_neighbors
         self.kernel_object = kernel_object
-        self.kernel_grassmann = kernel_grassmann
+        self.kernel_composition = kernel_composition
 
         # from UQpy.DimensionReduction import Grassmann
         # from DimensionReduction import Grassmann
@@ -1797,30 +1797,30 @@ class DiffusionMaps:
             else:
                 raise TypeError('UQpy: `k_neighbors` must be integer.')
 
-    def mapping(self, data=None, epsilon=None):
+    def mapping(self, data=None, epsilon=None, kernel_matrix=None):
 
         """
         Perform diffusion maps to reveal the embedded geometry of datasets.
 
         In this method, the users have the option to work with input data defined by subspaces obtained via projection
-        of input data points on the Grassmann manifold, or directly with the input data points. For example,
-        considering that a ``Grassmann`` object is provided using the following command:
+        of input data points on the Grassmann manifold, or directly with the input data points.
 
-        one can instantiate the DiffusionMaps class and run the diffusion maps as follows:
+        The user can either pass a dataset (samples) to compute the diffusion coordinates using the
+        Gaussian kernel or the Kernel matrix via `kernel_matrix`
 
-        On the other hand, if the user wish to pass a dataset (samples) to compute the diffusion coordinates using the Gaussian
-        kernel, one can use the following commands:
-
-        In the latest case, if `epsilon` is not provided it is estimated based on the median of the square of the
-        euclidian distances between data points.
+        In the latest case, if `epsilon` is not provided, it should be estimated from the median of the square of the
+        euclidean distances between data points.
 
         **Input:**
 
         * **data** (`list`)
             Data points in the ambient space.
         
-        * **epsilon** (`floar`)
+        * **epsilon** (`float`)
             Parameter of the Gaussian kernel.
+
+        * **kernel_matrix** (`list` or `ndarray`)
+            If not data is provide the user should provide a kernel
 
         **Output/Returns:**
 
@@ -1840,33 +1840,38 @@ class DiffusionMaps:
         sparse = self.sparse
         k_neighbors = self.k_neighbors
 
-        if data is None and not isinstance(self.kernel_object, Grassmann):
-            raise TypeError('UQpy: Data cannot be NoneType.')
+        if kernel_matrix is None:
 
-        if isinstance(self.kernel_object, Grassmann):
+            if data is None and not isinstance(self.kernel_object, Grassmann):
+                raise TypeError('UQpy: Data cannot be NoneType.')
 
-            if self.kernel_grassmann is None:
-                raise ValueError('UQpy: kernel_grassmann is not provided.')
+            if isinstance(self.kernel_object, Grassmann):
 
-            if self.kernel_grassmann == 'left':
-                kernel_matrix = self.kernel_object.kernel(self.kernel_object.psi)
-            elif self.kernel_grassmann == 'right':
-                kernel_matrix = self.kernel_object.kernel(self.kernel_object.phi)
-            elif self.kernel_grassmann == 'sum':
-                kernel_psi, kernel_phi = self.kernel_object.kernel()
-                kernel_matrix = kernel_psi + kernel_phi
-            elif self.kernel_grassmann == 'prod':
-                kernel_psi, kernel_phi = self.kernel_object.kernel()
-                kernel_matrix = kernel_psi * kernel_phi
+                if self.kernel_composition is None:
+                    raise ValueError('UQpy: kernel_grassmann is not provided.')
+
+                if self.kernel_composition == 'left':
+                    kernel_matrix = self.kernel_object.kernel(self.kernel_object.psi)
+                elif self.kernel_composition == 'right':
+                    kernel_matrix = self.kernel_object.kernel(self.kernel_object.phi)
+                elif self.kernel_composition == 'sum':
+                    kernel_psi, kernel_phi = self.kernel_object.kernel()
+                    kernel_matrix = kernel_psi + kernel_phi
+                elif self.kernel_composition == 'prod':
+                    kernel_psi, kernel_phi = self.kernel_object.kernel()
+                    kernel_matrix = kernel_psi * kernel_phi
+                else:
+                    raise ValueError('UQpy: the provided kernel_grassmann is not valid.')
+
+            elif self.kernel_object == DiffusionMaps.gaussian_kernel:
+                kernel_matrix = self.kernel_object(self, data=data, epsilon=epsilon)
+            elif callable(self.kernel_object) and self.kernel_object != DiffusionMaps.gaussian_kernel:
+                kernel_matrix = self.kernel_object(data=data)
             else:
-                raise ValueError('UQpy: the provided kernel_grassmann is not valid.')
+                raise TypeError('UQpy: Not valid type for kernel_object')
 
-        elif self.kernel_object == DiffusionMaps.gaussian_kernel:
-            kernel_matrix = self.kernel_object(self, data=data, epsilon=epsilon)
-        elif callable(self.kernel_object) and self.kernel_object != DiffusionMaps.gaussian_kernel:
-            kernel_matrix = self.kernel_object(data=data)
-        else:
-            raise TypeError('UQpy: Not valid type for kernel_object')
+        elif kernel_matrix is not None and data is not None:
+            raise TypeError('UQpy: If kernel_matrix is not NoneType no Data should be provided.')
 
         n = np.shape(kernel_matrix)[0]
         if sparse:
