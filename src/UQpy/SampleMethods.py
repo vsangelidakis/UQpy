@@ -2966,7 +2966,7 @@ class AKMCS:
         qoi_array = np.array([qoi[x] for x in np.squeeze(neighbors)])
 
         # Compute the learning function at every point in the population.
-        u = np.square(g - qoi_array) + np.square(sig)
+        u = np.square(g - np.atleast_2d(qoi_array).T) + np.square(sig)
         rows = u[:, 0].argsort()[(np.size(g) - n_add):]
 
         indicator = False
